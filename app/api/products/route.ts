@@ -12,9 +12,13 @@ export async function GET(request: Request) {
       isActive: true,
       OR: [{ sellerId: null }, { seller: { status: 'APPROVED' } }],
       ...(category ? { category: { slug: category } } : {}),
-      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
+      ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}),
     },
-    include: { category: true, seller: true },
+    include: {
+      category: true,
+      seller: true,
+      images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
+    },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -36,7 +40,7 @@ export async function POST(request: Request) {
 
   const product = await db.product.create({
     data: { sku, name, slug, description, priceRwf, stock, imageUrl, categoryId, sellerId: sellerId || null },
-    include: { seller: true, category: true },
+    include: { seller: true, category: true, images: true },
   });
 
   return Response.json({ product }, { status: 201 });
