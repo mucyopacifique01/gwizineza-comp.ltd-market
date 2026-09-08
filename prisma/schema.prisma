@@ -7,6 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SellerStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+model Seller {
+  id          String       @id @default(cuid())
+  businessName String
+  ownerName   String
+  phone       String
+  email       String?
+  address     String?
+  status      SellerStatus @default(PENDING)
+  products    Product[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status])
+  @@index([businessName])
+}
+
 model Category {
   id        String    @id @default(cuid())
   name      String    @unique
@@ -28,6 +50,8 @@ model Product {
   isActive    Boolean     @default(true)
   categoryId  String?
   category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  sellerId    String?
+  seller      Seller?     @relation(fields: [sellerId], references: [id], onDelete: SetNull)
   cartItems   CartItem[]
   orderItems  OrderItem[]
   createdAt   DateTime    @default(now())
@@ -35,6 +59,7 @@ model Product {
 
   @@index([categoryId])
   @@index([isActive])
+  @@index([sellerId])
 }
 
 model Cart {
@@ -91,6 +116,7 @@ model OrderItem {
   id          String  @id @default(cuid())
   orderId     String
   productId   String
+  sellerId    String?
   productName String
   unitPriceRwf Int
   quantity    Int
@@ -99,4 +125,5 @@ model OrderItem {
   product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([sellerId])
 }
