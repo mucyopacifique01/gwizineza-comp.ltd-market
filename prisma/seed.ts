@@ -2,10 +2,12 @@ import { PrismaClient } from '@prisma/client';
 
 const db = new PrismaClient();
 
+// Product prices are intentionally left at 0 until the real selling prices are set in Admin.
 const products = [
-  { sku: 'ESS-001', name: 'Everyday Essentials', slug: 'everyday-essentials', priceRwf: 12500, stock: 50, category: 'Featured' },
-  { sku: 'HOM-001', name: 'Home & Kitchen', slug: 'home-kitchen', priceRwf: 18000, stock: 30, category: 'Popular' },
-  { sku: 'CAR-001', name: 'Personal Care', slug: 'personal-care', priceRwf: 9500, stock: 40, category: 'New' },
+  { sku: 'DOV-001', name: 'Dove Go Fresh Beauty Bar', slug: 'dove-go-fresh-beauty-bar', priceRwf: 0, stock: 50, category: 'Personal Care', imageUrl: '/products/dove-soap.jpg' },
+  { sku: 'RIC-001', name: 'Rice 10kg', slug: 'rice-10kg', priceRwf: 0, stock: 30, category: 'Groceries', imageUrl: '/products/rice-10kg.jpg' },
+  { sku: 'RIC-002', name: 'Rice Bag', slug: 'rice-bag', priceRwf: 0, stock: 30, category: 'Groceries', imageUrl: '/products/rice-bag.jpg' },
+  { sku: 'SUG-001', name: 'Sugar Cane', slug: 'sugar-cane', priceRwf: 0, stock: 40, category: 'Groceries', imageUrl: '/products/sugar.jpg' },
 ];
 
 async function main() {
@@ -18,8 +20,8 @@ async function main() {
 
     await db.product.upsert({
       where: { sku: item.sku },
-      update: { name: item.name, slug: item.slug, priceRwf: item.priceRwf, stock: item.stock, categoryId: category.id, isActive: true },
-      create: { sku: item.sku, name: item.name, slug: item.slug, priceRwf: item.priceRwf, stock: item.stock, categoryId: category.id, isActive: true },
+      update: { name: item.name, slug: item.slug, priceRwf: item.priceRwf, stock: item.stock, imageUrl: item.imageUrl, categoryId: category.id, isActive: true },
+      create: { sku: item.sku, name: item.name, slug: item.slug, priceRwf: item.priceRwf, stock: item.stock, imageUrl: item.imageUrl, categoryId: category.id, isActive: true },
     });
   }
 }
