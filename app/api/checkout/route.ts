@@ -9,7 +9,7 @@ function makeOrderNumber() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { cartId, customerName, phone, tin, deliveryAddress } = body;
+  const { cartId, customerName, phone, deliveryAddress } = body;
 
   if (!cartId || !customerName || !phone || !deliveryAddress) {
     return Response.json({ error: 'cartId, customerName, phone and deliveryAddress are required' }, { status: 400 });
@@ -40,16 +40,16 @@ export async function POST(request: Request) {
         orderNumber: makeOrderNumber(),
         customerName,
         phone,
-        tin: tin || null,
         deliveryAddress,
         subtotalRwf,
         deliveryRwf,
         totalRwf,
         currency: 'RWF',
-        status: 'PENDING_PAYMENT',
+        status: 'ORDERED',
         items: {
           create: cart.items.map((item) => ({
             productId: item.productId,
+            sellerId: item.product.sellerId,
             productName: item.product.name,
             unitPriceRwf: item.product.priceRwf,
             quantity: item.quantity,
@@ -77,9 +77,7 @@ export async function POST(request: Request) {
       totalRwf: order.totalRwf,
       currency: order.currency,
       phone: order.phone,
-      tin: order.tin,
       items: order.items,
     },
-    nextStep: 'Create a payment request and verify the provider callback before changing the order to PAID.',
   }, { status: 201 });
 }
