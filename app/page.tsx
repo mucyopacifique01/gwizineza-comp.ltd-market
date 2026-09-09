@@ -123,6 +123,8 @@ export default function Home() {
     }
   }
 
+  const openShop = () => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
     <>
       <header className="nav">
@@ -137,18 +139,18 @@ export default function Home() {
         <section className="hero">
           <div className="container hero-grid">
             <div>
-              <div className="eyebrow">Online shopping in Rwanda</div>
-              <h1>Shop what you need. We deliver.</h1>
-              <p>Discover goods, order online, and receive your order details. Online payment can be added later.</p>
-              <div className="actions"><a className="btn btn-primary" href="#products">Start shopping</a><a className="btn btn-secondary" href="#how">How it works</a></div>
+              <div className="eyebrow">ONLINE SHOPPING IN RWANDA</div>
+              <h1>Shop what you need.<br />We deliver.</h1>
+              <p>Discover goods, choose what you need, place your order online, and receive your order details.</p>
+              <div className="actions"><button className="btn btn-primary" onClick={openShop}>Start shopping</button><a className="btn btn-secondary" href="#how">How it works</a></div>
             </div>
-            <div className="hero-card"><div className="badge">Live store foundation</div><h2>Your order, from click to delivery</h2><p className="muted">Products → Cart → Customer details → Order confirmation</p><div className="amount">{cartCount} item{cartCount === 1 ? '' : 's'} in cart</div><div className="muted">Web and future mobile app can share the same backend.</div></div>
+            <div className="hero-card"><div className="badge">Live store</div><h2>Your order, from click to delivery</h2><p className="muted">Products → Cart → Customer details → Order confirmation</p><div className="amount">{cartCount} item{cartCount === 1 ? '' : 's'} in cart</div><div className="muted">The website and future mobile app can share the same backend.</div></div>
           </div>
         </section>
 
         <section id="products" className="section">
-          <div className="container"><h2>Featured products</h2><p className="muted">Products are loaded from the database API.</p>
-            {loading ? <p>Loading products...</p> : <div className="products">{products.map((product) => <article className="product" key={product.id}><div className="product-image">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : '🛍️'}</div><div className="product-body"><div className="badge">{product.category?.name ?? 'Featured'}</div><h3>{product.name}</h3><div className="price">{money(product.priceRwf)}</div><div className="muted">{product.stock} in stock</div><button className="btn btn-primary" style={{ marginTop: 14, width: '100%' }} onClick={() => addToCart(product)} disabled={product.stock < 1}>Add to cart</button></div></article>)}</div>}
+          <div className="container"><h2>Shop products</h2><p className="muted">Choose a product and add it to your cart.</p>
+            {loading ? <p>Loading products...</p> : products.length === 0 ? <div className="note">No products are available yet. Add products from the admin area.</div> : <div className="products">{products.map((product) => <article className="product" key={product.id}><div className="product-image">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : '🛍️'}</div><div className="product-body"><div className="badge">{product.category?.name ?? 'Featured'}</div><h3>{product.name}</h3><div className="price">{money(product.priceRwf)}</div><div className="muted">{product.stock} in stock</div><button className="btn btn-primary" style={{ marginTop: 14, width: '100%' }} onClick={() => addToCart(product)} disabled={product.stock < 1}>Add to cart</button></div></article>)}</div>}
             {message && <div className="note" style={{ marginTop: 18 }}>{message}</div>}
           </div>
         </section>
@@ -164,23 +166,18 @@ export default function Home() {
                 <a className="btn btn-secondary" href="https://www.openstreetmap.org/?mlat=-2.0127&mlon=30.5585#map=15/-2.0127/30.5585" target="_blank" rel="noreferrer">Open map</a>
               </div>
               <div style={{ overflow: 'hidden', borderRadius: 16, minHeight: 320, border: '1px solid #ddd' }}>
-                <iframe
-                  title="Gwizineza Market location in Kabarondo, Rwanda"
-                  src="https://www.openstreetmap.org/export/embed.html?bbox=30.535%2C-2.030%2C30.582%2C-1.995&layer=mapnik&marker=-2.0127%2C30.5585"
-                  style={{ width: '100%', height: 320, border: 0 }}
-                  loading="lazy"
-                />
+                <iframe title="Gwizineza Market location in Kabarondo, Rwanda" src="https://www.openstreetmap.org/export/embed.html?bbox=30.535%2C-2.030%2C30.582%2C-1.995&layer=mapnik&marker=-2.0127%2C30.5585" style={{ width: '100%', height: 320, border: 0 }} loading="lazy" />
               </div>
             </div>
           </div>
         </section>
 
-        <section id="how" className="section"><div className="container"><div className="checkout"><div><div className="eyebrow">Simple ordering</div><h2>Order online</h2><p>Customers provide their name, phone number, and delivery address. The server creates the order and reserves stock. Payment and other business integrations will be added later.</p></div><div id="checkout" className="form"><label>Customer name</label><input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Your name" /><label>Customer phone / WhatsApp</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XX XXX XXX" /><label>Delivery address</label><input value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} placeholder="Kabarondo, district, sector..." /><button className="btn btn-primary" onClick={() => setCheckoutOpen(true)} disabled={cartCount === 0}>Review cart & place order</button><div className="note">No payment or tax information is requested at this stage. You can test the shopping and ordering flow first.</div></div></div></div></section>
+        <section id="how" className="section"><div className="container"><div className="checkout"><div><div className="eyebrow">Simple ordering</div><h2>Order online</h2><p>Customers provide their name, phone number, and delivery address. The server creates the order and reserves stock.</p></div><div id="checkout" className="form"><label>Customer name</label><input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Your name" /><label>Customer phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XX XXX XXX" /><label>Delivery address</label><input value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} placeholder="Kabarondo, district, sector..." /><button className="btn btn-primary" onClick={() => setCheckoutOpen(true)} disabled={cartCount === 0}>Review cart & place order</button><div className="note">No payment or tax information is requested at this stage.</div></div></div></div></section>
 
         {order && <section className="section"><div className="container"><div className="checkout"><div><div className="eyebrow">Order created</div><h2>Order {order.orderNumber}</h2><p>Your order has been created successfully.</p></div><div><div className="price">{money(order.totalRwf)}</div><div className="muted">Status: {order.status}</div></div></div></div></section>}
       </main>
 
-      {checkoutOpen && <div className="modal-backdrop" role="presentation" onClick={() => setCheckoutOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="cart-title" onClick={(e) => e.stopPropagation()}><button className="modal-close" onClick={() => setCheckoutOpen(false)} aria-label="Close">×</button><h2 id="cart-title">Your cart</h2>{cart.items.length === 0 ? <p className="muted">Your cart is empty.</p> : <><div>{cart.items.map((item) => <div className="cart-row" key={item.productId}><div><strong>{item.product.name}</strong><div className="muted">{item.quantity} × {money(item.product.priceRwf)}</div></div><button className="btn btn-secondary" onClick={() => removeFromCart(item.productId)}>Remove</button></div>)}</div><div className="cart-total">Total: {money(cart.subtotalRwf)}</div><form className="form" onSubmit={submitCheckout}><label>Customer name</label><input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Your name" /><label>Phone / WhatsApp</label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XX XXX XXX" /><label>Delivery address</label><input required value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} placeholder="Kabarondo, district, sector..." /><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Placing order...' : 'Place order'}</button></form></>}</div></div>}
+      {checkoutOpen && <div className="modal-backdrop" role="presentation" onClick={() => setCheckoutOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="cart-title" onClick={(e) => e.stopPropagation()}><button className="modal-close" onClick={() => setCheckoutOpen(false)} aria-label="Close">×</button><h2 id="cart-title">Your cart</h2>{cart.items.length === 0 ? <p className="muted">Your cart is empty.</p> : <><div>{cart.items.map((item) => <div className="cart-row" key={item.productId}><div><strong>{item.product.name}</strong><div className="muted">{item.quantity} × {money(item.product.priceRwf)}</div></div><button className="btn btn-secondary" onClick={() => removeFromCart(item.productId)}>Remove</button></div>)}</div><div className="cart-total">Total: {money(cart.subtotalRwf)}</div><form className="form" onSubmit={submitCheckout}><label>Customer name</label><input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Your name" /><label>Phone</label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XX XXX XXX" /><label>Delivery address</label><input required value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} placeholder="Kabarondo, district, sector..." /><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Placing order...' : 'Place order'}</button></form></>}</div></div>}
 
       <footer className="footer"><div className="container">© 2026 Gwizineza Market · Kabarondo, Rwanda · E-commerce foundation</div></footer>
     </>
