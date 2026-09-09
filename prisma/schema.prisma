@@ -96,29 +96,24 @@ model CartItem {
 }
 
 enum OrderStatus {
-  PENDING_PAYMENT
-  PAID
+  ORDERED
   PROCESSING
   SHIPPED
   DELIVERED
   CANCELLED
-  REFUNDED
 }
 
 model Order {
   id              String      @id @default(cuid())
   orderNumber     String      @unique
-  status          OrderStatus @default(PENDING_PAYMENT)
+  status          OrderStatus @default(ORDERED)
   customerName    String
   phone           String
-  tin             String?
   deliveryAddress String
   subtotalRwf     Int
   deliveryRwf     Int         @default(0)
   totalRwf        Int
   currency        String      @default("RWF")
-  paymentRef      String?
-  ebmInvoiceNo    String?
   items           OrderItem[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
