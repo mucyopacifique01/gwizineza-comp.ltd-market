@@ -2,39 +2,84 @@
 
 **Owner & Creator:** Mucyo Pacifique
 
-A Rwanda-focused e-commerce platform for selling goods online. Customers can browse products, add items to a cart, provide delivery and TIN information when needed, pay online, receive an EBM receipt, and have the receipt sent to their WhatsApp number.
-
-## Project ownership
-
-This project is created and owned by **Mucyo Pacifique**.
+A Rwanda-focused e-commerce platform for selling goods online. Customers can browse products, add items to a cart, provide delivery details, and place an order.
 
 ## Current foundation
 
-- Next.js + React + TypeScript web storefront
-- Responsive marketing and product catalog UI
-- Checkout fields for WhatsApp/phone, TIN and delivery address
-- Product database, categories, inventory and cart persistence
+- Next.js + React + TypeScript storefront
+- PostgreSQL database with Prisma ORM
+- Product catalog, categories and inventory
+- Persistent cart
 - Order creation and order status foundation
-- Architecture prepared for server-side payment, EBM and WhatsApp integrations
+- Admin dashboard and multi-seller foundation
+- Product image gallery support
 - Future mobile app can use the same backend/API and database
 
 ## Run locally
 
+### 1. Install prerequisites
+
+Install Node.js and Docker Desktop.
+
+### 2. Install dependencies
+
 ```bash
 npm install
+```
+
+### 3. Start PostgreSQL
+
+```bash
+docker compose up -d
+```
+
+This starts a local PostgreSQL database named `gwizineza` on port `5432`.
+
+### 4. Configure the database
+
+Create a `.env` file in the project root using `.env.example` as the template. The local connection is:
+
+```env
+DATABASE_URL="postgresql://gwizineza:gwizineza_local_password@localhost:5432/gwizineza?schema=public"
+```
+
+Do not commit `.env` or real database credentials to GitHub.
+
+### 5. Create the database tables
+
+```bash
+npx prisma db push
+npx prisma generate
+```
+
+### 6. Load the product catalog
+
+```bash
+npm run db:seed
+```
+
+The seed contains the 15 current products and their RWF prices.
+
+### 7. Start the website
+
+```bash
 npm run dev
 ```
 
 Then open `http://localhost:3000`.
 
-## Next implementation phases
+## Database tools
 
-1. Customer accounts and orders
-2. Rwanda payment gateway integration with server-side verification
-3. EBM/RRA integration and invoice storage
-4. WhatsApp Business messaging for receipts
-5. Admin dashboard
-6. Mobile application using the shared API
-7. Analytics, SEO, promotions and deep links
+Open Prisma Studio to inspect products, sellers, carts and orders:
 
-> Never put payment, EBM credentials, or WhatsApp secrets in frontend code. Keep credentials in server-side environment variables and verify payment webhooks before issuing an order receipt.
+```bash
+npx prisma studio
+```
+
+Stop the local database with:
+
+```bash
+docker compose down
+```
+
+The database data remains in the Docker volume unless the volume is explicitly removed.
