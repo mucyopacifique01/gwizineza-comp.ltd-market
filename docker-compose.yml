@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gwizineza-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gwizineza
+      POSTGRES_USER: gwizineza
+      POSTGRES_PASSWORD: gwizineza_local_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - gwizineza_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  gwizineza_postgres_data:
