@@ -6,20 +6,35 @@ A Rwanda-focused e-commerce platform for selling goods online. Customers can bro
 
 ## Current foundation
 
-- Next.js + React + TypeScript storefront
-- PostgreSQL database with Prisma ORM
+- Next.js + React + TypeScript storefront and API
+- MongoDB database with Prisma ORM
 - Product catalog, categories and inventory
 - Persistent cart
 - Order creation and order status foundation
 - Admin dashboard and multi-seller foundation
 - Product image gallery support
+- Ready for Vercel or Render deployment
 - Future mobile app can use the same backend/API and database
+
+## Database: MongoDB Atlas
+
+The project now uses MongoDB instead of PostgreSQL. For production, use MongoDB Atlas and copy its connection string into `DATABASE_URL`.
+
+Example:
+
+```env
+DATABASE_URL="mongodb+srv://USERNAME:PASSWORD@cluster.mongodb.net/gwizineza?retryWrites=true&w=majority"
+```
+
+Keep database credentials in your hosting provider's environment variables. Do not commit `.env` or real credentials to GitHub.
+
+MongoDB does not use Prisma relational migrations, so schema changes are applied with `prisma db push`.
 
 ## Run locally
 
-### 1. Install prerequisites
+### 1. Install Node.js
 
-Install Node.js and Docker Desktop.
+Install a current supported Node.js LTS release.
 
 ### 2. Install dependencies
 
@@ -27,40 +42,25 @@ Install Node.js and Docker Desktop.
 npm install
 ```
 
-### 3. Start PostgreSQL
+### 3. Configure MongoDB
+
+Create a `.env` file in the project root using `.env.example` as the template and set `DATABASE_URL` to your MongoDB Atlas connection string.
+
+### 4. Create MongoDB collections/indexes
 
 ```bash
-docker compose up -d
+npm run db:push
 ```
 
-This starts a local PostgreSQL database named `gwizineza` on port `5432`.
-
-### 4. Configure the database
-
-Create a `.env` file in the project root using `.env.example` as the template. The local connection is:
-
-```env
-DATABASE_URL="postgresql://gwizineza:gwizineza_local_password@localhost:5432/gwizineza?schema=public"
-```
-
-Do not commit `.env` or real database credentials to GitHub.
-
-### 5. Create the database tables
-
-```bash
-npx prisma db push
-npx prisma generate
-```
-
-### 6. Load the product catalog
+### 5. Load the product catalog
 
 ```bash
 npm run db:seed
 ```
 
-The seed contains the 15 current products and their RWF prices.
+The seed contains the 15 current products and their RWF prices. Products for which stock has not yet been provided remain at stock `0` so they cannot be ordered accidentally.
 
-### 7. Start the website
+### 6. Start the website
 
 ```bash
 npm run dev
@@ -68,18 +68,47 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
-## Database tools
+## Production deployment
 
-Open Prisma Studio to inspect products, sellers, carts and orders:
+### Vercel
+
+1. Import this GitHub repository into Vercel.
+2. Keep the framework as Next.js and use the default build settings.
+3. Add `DATABASE_URL` in the Vercel project Environment Variables.
+4. Deploy.
+
+The `postinstall` script generates Prisma Client during the Vercel install/build process.
+
+### Render
+
+A `render.yaml` file is included. Create a Render Web Service from this repository and use the Blueprint configuration, or use:
+
+- Build command: `npm ci && npm run build`
+- Start command: `npm start`
+- Environment variable: `DATABASE_URL` = your MongoDB Atlas connection string
+
+Render can automatically redeploy when changes are pushed to the connected GitHub branch.
+
+## Prisma tools
+
+Generate Prisma Client:
+
+```bash
+npm run db:generate
+```
+
+Sync the Prisma schema to MongoDB:
+
+```bash
+npm run db:push
+```
+
+Open Prisma Studio:
 
 ```bash
 npx prisma studio
 ```
 
-Stop the local database with:
+## Important production note
 
-```bash
-docker compose down
-```
-
-The database data remains in the Docker volume unless the volume is explicitly removed.
+The current project still needs proper admin authentication/authorization before exposing seller and product-management endpoints publicly. Database credentials should remain server-side and must never be placed in client-side environment variables such as `NEXT_PUBLIC_*`.
