@@ -2,113 +2,98 @@
 
 **Owner & Creator:** Mucyo Pacifique
 
-A Rwanda-focused e-commerce platform for selling goods online. Customers can browse products, add items to a cart, provide delivery details, and place an order.
+Rwanda-focused e-commerce platform for selling goods online. Customers browse products, add items to a cart, provide delivery details, place orders, and track orders.
 
-## Current foundation
+## Stack
 
-- Next.js + React + TypeScript storefront and API
-- MongoDB database with Prisma ORM
-- Product catalog, categories and inventory
-- Persistent cart
-- Order creation and order status foundation
-- Admin dashboard and multi-seller foundation
-- Product image gallery support
-- Ready for Vercel or Render deployment
-- Future mobile app can use the same backend/API and database
+- Next.js 14 + React + TypeScript
+- Prisma ORM
+- MongoDB Atlas
+- Netlify for the web deployment
+- Render configuration included for a separate Node service deployment when needed
+- GitHub continuous deployment
 
-## Database: MongoDB Atlas
+## Implemented features
 
-The project now uses MongoDB instead of PostgreSQL. For production, use MongoDB Atlas and copy its connection string into `DATABASE_URL`.
+- Product catalog, categories, prices and stock
+- Search and category filtering at `/shop`
+- Persistent browser cart
+- Customer checkout without payment/tax collection
+- Order creation and customer order tracking at `/orders/<ORDER_NUMBER>`
+- Admin login and signed admin session
+- Protected seller, product, gallery and order APIs
+- Admin product create/edit/archive and stock management at `/admin/products`
+- Seller management and approval/suspension at `/admin`
+- Product gallery management at `/admin`
+- Admin order status management at `/admin/orders`
+- Responsive storefront foundation
+- Kabarondo, Rwanda location section
+- Multi-seller foundation
 
-Example:
+Payment, TIN, EBM and WhatsApp receipt features are intentionally excluded from this version, as requested. They can be added later.
+
+## MongoDB Atlas
+
+Set `DATABASE_URL` to a MongoDB Atlas connection string. Prisma MongoDB uses `prisma db push` for schema synchronization.
 
 ```env
 DATABASE_URL="mongodb+srv://USERNAME:PASSWORD@cluster.mongodb.net/gwizineza?retryWrites=true&w=majority"
+ADMIN_PASSWORD="your-private-admin-password"
+ADMIN_SESSION_SECRET="a-long-random-secret"
 ```
 
-Keep database credentials in your hosting provider's environment variables. Do not commit `.env` or real credentials to GitHub.
+Never commit real credentials to GitHub. Set these variables in the hosting provider instead.
 
-MongoDB does not use Prisma relational migrations, so schema changes are applied with `prisma db push`.
-
-## Run locally
-
-### 1. Install Node.js
-
-Install a current supported Node.js LTS release.
-
-### 2. Install dependencies
+## Local run
 
 ```bash
 npm install
-```
-
-### 3. Configure MongoDB
-
-Create a `.env` file in the project root using `.env.example` as the template and set `DATABASE_URL` to your MongoDB Atlas connection string.
-
-### 4. Create MongoDB collections/indexes
-
-```bash
+# create .env from .env.example and set DATABASE_URL + admin variables
 npm run db:push
-```
-
-### 5. Load the product catalog
-
-```bash
 npm run db:seed
-```
-
-The seed contains the 15 current products and their RWF prices. Products for which stock has not yet been provided remain at stock `0` so they cannot be ordered accidentally.
-
-### 6. Start the website
-
-```bash
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Open `http://localhost:3000`.
 
-## Production deployment
+## Netlify deployment
 
-### Vercel
+Netlify supports the Next.js App Router, route handlers, SSR and middleware with its current Next.js adapter. The repository contains `netlify.toml` with the production build configuration. citeturn0search0turn0search2
 
-1. Import this GitHub repository into Vercel.
-2. Keep the framework as Next.js and use the default build settings.
-3. Add `DATABASE_URL` in the Vercel project Environment Variables.
-4. Deploy.
+1. Connect this GitHub repository in Netlify.
+2. Use the `main` branch for production.
+3. Add `DATABASE_URL`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` as Netlify environment variables.
+4. Use `npm run build` as the build command if Netlify does not auto-detect it.
+5. Deploy.
 
-The `postinstall` script generates Prisma Client during the Vercel install/build process.
+Netlify can automatically rebuild the site whenever changes are pushed to the connected Git repository. citeturn0search4turn0search13
 
-### Render
+## Render
 
-A `render.yaml` file is included. Create a Render Web Service from this repository and use the Blueprint configuration, or use:
+`render.yaml` contains a Node web-service configuration. Add the same production environment variables in Render if you deploy the Node service there.
 
-- Build command: `npm ci && npm run build`
-- Start command: `npm start`
-- Environment variable: `DATABASE_URL` = your MongoDB Atlas connection string
+## Image storage
 
-Render can automatically redeploy when changes are pushed to the connected GitHub branch.
+The current gallery accepts secure HTTP(S) image URLs, which works with Cloudinary, an object-storage CDN, or another image host. The `.env.example` includes optional Cloudinary variables for a future direct upload integration. No image-storage secret is committed to GitHub.
 
-## Prisma tools
+## Production checklist
 
-Generate Prisma Client:
+Before launch:
+
+- Create the MongoDB Atlas production cluster.
+- Add `DATABASE_URL` to Netlify/Render.
+- Set a strong `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`.
+- Run the seed once against the intended database if the initial catalog is required.
+- Test product creation, stock changes, cart, checkout and order tracking.
+- Confirm the admin login works.
+- Add production product images.
+- Connect a custom domain to Netlify when ready.
+
+## Prisma commands
 
 ```bash
 npm run db:generate
-```
-
-Sync the Prisma schema to MongoDB:
-
-```bash
 npm run db:push
-```
-
-Open Prisma Studio:
-
-```bash
+npm run db:seed
 npx prisma studio
 ```
-
-## Important production note
-
-The current project still needs proper admin authentication/authorization before exposing seller and product-management endpoints publicly. Database credentials should remain server-side and must never be placed in client-side environment variables such as `NEXT_PUBLIC_*`.
