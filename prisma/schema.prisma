@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -14,7 +14,7 @@ enum SellerStatus {
 }
 
 model Seller {
-  id           String       @id @default(cuid())
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
   businessName String
   ownerName    String
   phone        String
@@ -30,7 +30,7 @@ model Seller {
 }
 
 model Category {
-  id        String    @id @default(cuid())
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String    @unique
   slug      String    @unique
   products  Product[]
@@ -39,7 +39,7 @@ model Category {
 }
 
 model Product {
-  id          String         @id @default(cuid())
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
   sku         String         @unique
   name        String
   slug        String         @unique
@@ -48,9 +48,9 @@ model Product {
   stock       Int            @default(0)
   imageUrl    String?
   isActive    Boolean        @default(true)
-  categoryId  String?
+  categoryId  String?        @db.ObjectId
   category    Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  sellerId    String?
+  sellerId    String?        @db.ObjectId
   seller      Seller?        @relation(fields: [sellerId], references: [id], onDelete: SetNull)
   images      ProductImage[]
   cartItems   CartItem[]
@@ -64,8 +64,8 @@ model Product {
 }
 
 model ProductImage {
-  id        String   @id @default(cuid())
-  productId String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId String   @db.ObjectId
   url       String
   altText   String?
   sortOrder Int      @default(0)
@@ -78,16 +78,16 @@ model ProductImage {
 }
 
 model Cart {
-  id        String     @id @default(cuid())
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
 
 model CartItem {
-  id        String   @id @default(cuid())
-  cartId    String
-  productId String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  cartId    String   @db.ObjectId
+  productId String   @db.ObjectId
   quantity  Int      @default(1)
   cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
@@ -104,7 +104,7 @@ enum OrderStatus {
 }
 
 model Order {
-  id              String      @id @default(cuid())
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
   orderNumber     String      @unique
   status          OrderStatus @default(ORDERED)
   customerName    String
@@ -123,10 +123,10 @@ model Order {
 }
 
 model OrderItem {
-  id           String  @id @default(cuid())
-  orderId      String
-  productId    String
-  sellerId     String?
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  orderId      String  @db.ObjectId
+  productId    String  @db.ObjectId
+  sellerId     String? @db.ObjectId
   productName  String
   unitPriceRwf Int
   quantity     Int
