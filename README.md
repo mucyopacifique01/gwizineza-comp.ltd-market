@@ -9,6 +9,7 @@ Rwanda-focused e-commerce platform for selling goods online. Customers browse pr
 - Next.js 14 + React + TypeScript
 - Prisma ORM
 - MongoDB Atlas
+- Supabase Storage for product images
 - Netlify for the web deployment
 - Render configuration included for a separate Node service deployment when needed
 - GitHub continuous deployment
@@ -23,6 +24,7 @@ Rwanda-focused e-commerce platform for selling goods online. Customers browse pr
 - Admin login and signed admin session
 - Protected seller, product, gallery and order APIs
 - Admin product create/edit/archive and stock management at `/admin/products`
+- Admin product image upload directly to Supabase Storage
 - Seller management and approval/suspension at `/admin`
 - Product gallery management at `/admin`
 - Admin order status management at `/admin/orders`
@@ -36,19 +38,25 @@ Payment, TIN, EBM and WhatsApp receipt features are intentionally excluded from 
 
 Set `DATABASE_URL` to a MongoDB Atlas connection string. Prisma MongoDB uses `prisma db push` for schema synchronization.
 
+## Supabase Storage
+
+Create a Supabase project and create a Storage bucket named `product-images`. The admin upload endpoint uses the server-side Supabase service-role key, so that key must never be exposed in browser code or committed to GitHub.
+
+Set these environment variables in the hosting provider and in local development:
+
 ```env
-DATABASE_URL="mongodb+srv://USERNAME:PASSWORD@cluster.mongodb.net/gwizineza?retryWrites=true&w=majority"
-ADMIN_PASSWORD="your-private-admin-password"
-ADMIN_SESSION_SECRET="a-long-random-secret"
+SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
+SUPABASE_STORAGE_BUCKET="product-images"
 ```
 
-Never commit real credentials to GitHub. Set these variables in the hosting provider instead.
+The product-image URLs are public Storage URLs, so the `product-images` bucket should be configured for public reads if the storefront needs to display them directly.
 
 ## Local run
 
 ```bash
 npm install
-# create .env from .env.example and set DATABASE_URL + admin variables
+# create .env from .env.example and set DATABASE_URL + admin variables + Supabase variables
 npm run db:push
 npm run db:seed
 npm run dev
@@ -58,15 +66,11 @@ Open `http://localhost:3000`.
 
 ## Netlify deployment
 
-Netlify supports the Next.js App Router, route handlers, SSR and middleware with its current Next.js adapter. The repository contains `netlify.toml` with the production build configuration. citeturn0search0turn0search2
-
 1. Connect this GitHub repository in Netlify.
 2. Use the `main` branch for production.
-3. Add `DATABASE_URL`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` as Netlify environment variables.
+3. Add `DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` as Netlify environment variables.
 4. Use `npm run build` as the build command if Netlify does not auto-detect it.
 5. Deploy.
-
-Netlify can automatically rebuild the site whenever changes are pushed to the connected Git repository. citeturn0search4turn0search13
 
 ## Render
 
@@ -74,19 +78,19 @@ Netlify can automatically rebuild the site whenever changes are pushed to the co
 
 ## Image storage
 
-The current gallery accepts secure HTTP(S) image URLs, which works with Cloudinary, an object-storage CDN, or another image host. The `.env.example` includes optional Cloudinary variables for a future direct upload integration. No image-storage secret is committed to GitHub.
+Product images are no longer configured for Cloudinary. The admin product form can upload an image directly to Supabase Storage and then save the returned public URL on the product. Pasting an existing HTTP(S) image URL is also supported.
 
 ## Production checklist
 
 Before launch:
 
 - Create the MongoDB Atlas production cluster.
-- Add `DATABASE_URL` to Netlify/Render.
+- Create the Supabase `product-images` Storage bucket.
+- Add `DATABASE_URL`, admin variables, and Supabase variables to Netlify/Render.
 - Set a strong `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`.
 - Run the seed once against the intended database if the initial catalog is required.
-- Test product creation, stock changes, cart, checkout and order tracking.
+- Test product creation, image upload, stock changes, cart, checkout and order tracking.
 - Confirm the admin login works.
-- Add production product images.
 - Connect a custom domain to Netlify when ready.
 
 ## Prisma commands
