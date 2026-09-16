@@ -57,7 +57,7 @@ export async function GET(request: Request) {
   const admin = url.searchParams.get('admin') === 'true';
   if (admin) requireAdmin();
 
-  if (!admin && !category && !q) await ensureStarterCatalog();
+  if (!admin) await ensureStarterCatalog();
 
   const products = await db.product.findMany({
     where: {
