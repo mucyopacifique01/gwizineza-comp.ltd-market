@@ -14,16 +14,72 @@ type Product = {
 type CartItem = { productId: string; quantity: number; product: Product };
 type Cart = { items: CartItem[]; subtotalRwf: number };
 const money = (value: number) => `${value.toLocaleString('en-US')} RWF`;
-function getCartId() { const existing = window.localStorage.getItem('gwizineza-cart-id'); if (existing) return existing; const id = window.crypto.randomUUID(); window.localStorage.setItem('gwizineza-cart-id', id); return id; }
+
+function createCartId() {
+  const bytes = new Uint8Array(12);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function getCartId() {
+  const existing = window.localStorage.getItem('gwizineza-cart-id');
+  if (existing && /^[a-f0-9]{24}$/i.test(existing)) return existing;
+  const id = createCartId();
+  window.localStorage.setItem('gwizineza-cart-id', id);
+  return id;
+}
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]); const [cart, setCart] = useState<Cart>({ items: [], subtotalRwf: 0 }); const [cartId, setCartId] = useState(''); const [loading, setLoading] = useState(true); const [message, setMessage] = useState(''); const [checkoutOpen, setCheckoutOpen] = useState(false); const [submitting, setSubmitting] = useState(false); const [order, setOrder] = useState<{ orderNumber: string; totalRwf: number; status: string } | null>(null); const [form, setForm] = useState({ customerName: '', phone: '', deliveryAddress: '' });
   const cartCount = useMemo(() => cart.items.reduce((sum, item) => sum + item.quantity, 0), [cart.items]);
-  async function loadCart(id: string) { const response = await fetch(`/api/cart?cartId=${encodeURIComponent(id)}`, { cache: 'no-store' }); if (!response.ok) throw new Error('Could not load cart'); setCart((await response.json()).cart); }
-  useEffect(() => { const id = getCartId(); setCartId(id); Promise.all([fetch('/api/products', { cache: 'no-store' }).then(async r => { if (!r.ok) throw new Error(); return r.json(); }), loadCart(id)]).then(([d]) => setProducts(d.products ?? [])).catch(() => setMessage('We could not load the store right now. Please refresh and try again.')).finally(() => setLoading(false)); }, []);
-  async function addToCart(product: Product) { setMessage(''); const existing = cart.items.find(i => i.productId === product.id); const quantity = (existing?.quantity ?? 0) + 1; if (quantity > product.stock) { setMessage(`Only ${product.stock} ${product.name} available.`); return; } const r = await fetch('/api/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartId, productId: product.id, quantity }) }); const d = await r.json(); if (!r.ok) { setMessage(d.error ?? 'Could not add this product.'); return; } await loadCart(cartId); setMessage(`${product.name} added to your cart.`); }
-  async function removeFromCart(productId: string) { await fetch('/api/cart', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartId, productId }) }); await loadCart(cartId); }
-  async function submitCheckout(event: FormEvent) { event.preventDefault(); setSubmitting(true); setMessage(''); try { const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartId, ...form }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error ?? 'Could not place order'); setOrder(d.order); setCheckoutOpen(false); await loadCart(cartId); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not place order.'); } finally { setSubmitting(false); } }
+
+  async function loadCart(id: string) {
+    const response = await fetch(`/api/cart?cartId=${encodeURIComponent(id)}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Could not load cart');
+    setCart((await response.json()).cart);
+  }
+
+  useEffect(() => {
+    const id = getCartId();
+    setCartId(id);
+    setLoading(true);
+    fetch('/api/products', { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error('Could not load products');
+        const data = await response.json();
+        setProducts(data.products ?? []);
+      })
+      .catch(() => setMessage('We could not load the store right now. Please refresh and try again.'))
+      .finally(() => setLoading(false));
+    loadCart(id).catch(() => setMessage('Products are available, but your cart could not be loaded. Please refresh and try again.'));
+  }, []);
+
+  async function addToCart(product: Product) {
+    setMessage('');
+    const existing = cart.items.find(i => i.productId === product.id);
+    const quantity = (existing?.quantity ?? 0) + 1;
+    if (quantity > product.stock) { setMessage(`Only ${product.stock} ${product.name} available.`); return; }
+    const r = await fetch('/api/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartId, productId: product.id, quantity }) });
+    const d = await r.json();
+    if (!r.ok) { setMessage(d.error ?? 'Could not add this product.'); return; }
+    await loadCart(cartId); setMessage(`${product.name} added to your cart.`);
+  }
+
+  async function removeFromCart(productId: string) {
+    await fetch('/api/cart', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartId, productId }) });
+    await loadCart(cartId);
+  }
+
+  async function submitCheckout(event: FormEvent) {
+    event.preventDefault(); setSubmitting(true); setMessage('');
+    try {
+      const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartId, ...form }) });
+      const d = await r.json(); if (!r.ok) throw new Error(d.error ?? 'Could not place order');
+      setOrder(d.order); setCheckoutOpen(false); await loadCart(cartId);
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not place order.'); }
+    finally { setSubmitting(false); }
+  }
+
   return <>
     <header className="nav"><div className="container nav-inner"><div className="logo">Gwizineza<span> Market</span></div><nav className="nav-links"><a href="#products">Products</a><a href="#how">How it works</a><a href="#location">Location</a><a href="#checkout">Checkout</a><a href="/auth">Sign in / Sign up</a></nav><button className="btn btn-primary" onClick={() => setCheckoutOpen(true)}>Cart ({cartCount})</button></div></header>
     <main>
