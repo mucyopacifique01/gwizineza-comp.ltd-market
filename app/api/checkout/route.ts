@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/prisma';
+import { apiErrorResponse } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,5 +17,5 @@ export async function POST(request:Request){
    await tx.cartItem.deleteMany({where:{cartId}});return created;
   });
   return Response.json({order:{id:order.id,orderNumber:order.orderNumber,status:order.status,totalRwf:order.totalRwf,currency:order.currency,phone:order.phone,items:order.items}},{status:201});
- }catch(error){const message=error instanceof Error?error.message:'';if(message==='CART_EMPTY')return Response.json({error:'Cart is empty'},{status:400});if(message.startsWith('OUT_OF_STOCK:'))return Response.json({error:`Not enough stock for ${message.slice(13)}`},{status:409});return Response.json({error:'Could not place order'},{status:500});}
+ }catch(error){const message=error instanceof Error?error.message:'';if(message==='CART_EMPTY')return Response.json({error:'Cart is empty'},{status:400});if(message.startsWith('OUT_OF_STOCK:'))return Response.json({error:`Not enough stock for ${message.slice(13)}`},{status:409});return apiErrorResponse('checkout', error);}
 }

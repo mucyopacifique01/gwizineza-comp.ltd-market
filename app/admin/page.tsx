@@ -78,6 +78,7 @@ export default function AdminPage() {
     finally { setLoading(false); }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only; reloads are triggered explicitly by admin actions
   useEffect(() => { void load(); }, []);
   useEffect(() => { void loadImages(selectedProductId); }, [selectedProductId]);
 
