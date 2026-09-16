@@ -43,96 +43,100 @@ export default function AdminPage() {
   async function loadSellers() {
     const response = await fetch('/api/sellers', { cache: 'no-store' });
     const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? 'Could not load sellers.');
     setSellers(data.sellers ?? []);
   }
 
   async function loadProducts() {
     const response = await fetch('/api/products?admin=true', { cache: 'no-store' });
     const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? 'Could not load products.');
     const nextProducts: Product[] = data.products ?? [];
     setProducts(nextProducts);
-    if (!selectedProductId && nextProducts[0]) setSelectedProductId(nextProducts[0].id);
+    setSelectedProductId(current => current && nextProducts.some(product => product.id === current) ? current : nextProducts[0]?.id ?? '');
   }
 
   async function loadImages(productId: string) {
-    if (!productId) {
-      setImages([]);
-      return;
-    }
+    if (!productId) { setImages([]); return; }
     setImagesLoading(true);
-    const response = await fetch(`/api/product-images?productId=${encodeURIComponent(productId)}`, { cache: 'no-store' });
-    const data = await response.json();
-    setImages(data.images ?? []);
-    setImagesLoading(false);
+    try {
+      const response = await fetch(`/api/product-images?productId=${encodeURIComponent(productId)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not load pictures.');
+      setImages(data.images ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load pictures.');
+      setImages([]);
+    } finally { setImagesLoading(false); }
   }
 
   async function load() {
     setLoading(true);
-    await Promise.all([loadSellers(), loadProducts()]);
-    setLoading(false);
+    setMessage('');
+    try { await Promise.all([loadSellers(), loadProducts()]); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Could not load admin data.'); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { loadImages(selectedProductId); }, [selectedProductId]);
+  useEffect(() => { void load(); }, []);
+  useEffect(() => { void loadImages(selectedProductId); }, [selectedProductId]);
 
   const selectedProduct = useMemo(() => products.find(product => product.id === selectedProductId), [products, selectedProductId]);
 
   async function addSeller(event: FormEvent) {
-    event.preventDefault();
-    setMessage('');
-    const response = await fetch('/api/sellers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await response.json();
-    if (!response.ok) { setMessage(data.error ?? 'Could not add seller.'); return; }
-    setForm({ businessName: '', ownerName: '', phone: '', email: '', address: 'Kabarondo, Kayonza, Rwanda' });
-    setMessage('Seller added and approved.');
-    await loadSellers();
+    event.preventDefault(); setMessage('');
+    try {
+      const response = await fetch('/api/sellers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not add seller.');
+      setForm({ businessName: '', ownerName: '', phone: '', email: '', address: 'Kabarondo, Kayonza, Rwanda' });
+      setMessage('Seller added as pending. Approve the seller before assigning products.');
+      await loadSellers();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not add seller.'); }
   }
 
   async function changeStatus(id: string, status: Seller['status']) {
-    const response = await fetch('/api/sellers', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    });
-    if (response.ok) await loadSellers();
+    try {
+      const response = await fetch('/api/sellers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not change seller status.');
+      await loadSellers();
+      setMessage(`Seller status changed to ${status}.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not change seller status.'); }
   }
 
   async function addImage(event: FormEvent) {
     event.preventDefault();
     if (!selectedProductId) return;
     setMessage('');
-    const response = await fetch('/api/product-images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId: selectedProductId, ...imageForm }),
-    });
-    const data = await response.json();
-    if (!response.ok) { setMessage(data.error ?? 'Could not add image.'); return; }
-    setImageForm({ url: '', altText: '', isPrimary: false });
-    setMessage('Product image added.');
-    await loadImages(selectedProductId);
+    try {
+      const response = await fetch('/api/product-images', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: selectedProductId, ...imageForm }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not add image.');
+      setImageForm({ url: '', altText: '', isPrimary: false });
+      setMessage('Product image added.');
+      await loadImages(selectedProductId);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not add image.'); }
   }
 
   async function updateImage(id: string, changes: Partial<ProductImage>) {
-    const response = await fetch('/api/product-images', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...changes }),
-    });
-    if (response.ok) await loadImages(selectedProductId);
+    try {
+      const response = await fetch('/api/product-images', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...changes }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not update image.');
+      await loadImages(selectedProductId);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not update image.'); }
   }
 
   async function deleteImage(id: string) {
     if (!window.confirm('Remove this product image?')) return;
-    const response = await fetch(`/api/product-images?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (response.ok) {
+    try {
+      const response = await fetch(`/api/product-images?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not remove image.');
       setMessage('Product image removed.');
       await loadImages(selectedProductId);
-    }
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not remove image.'); }
   }
 
   async function moveImage(image: ProductImage, direction: -1 | 1) {
@@ -140,10 +144,11 @@ export default function AdminPage() {
     const index = ordered.findIndex(item => item.id === image.id);
     const target = ordered[index + direction];
     if (!target) return;
-    await Promise.all([
-      updateImage(image.id, { sortOrder: target.sortOrder }),
-      updateImage(target.id, { sortOrder: image.sortOrder }),
-    ]);
+    try {
+      await updateImage(image.id, { sortOrder: target.sortOrder });
+      await updateImage(target.id, { sortOrder: image.sortOrder });
+      await loadImages(selectedProductId);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not reorder images.'); }
   }
 
   return (
@@ -190,48 +195,16 @@ export default function AdminPage() {
           <div className="eyebrow">Product gallery</div>
           <h2>Change product pictures</h2>
           <p className="muted">Each product can have several pictures. Choose a main picture, reorder the smaller pictures, or remove them.</p>
-
           <label>Product</label>
-          <select className="admin-select" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
-            <option value="">Select a product</option>
-            {products.map(product => <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>)}
-          </select>
-
-          {selectedProduct && (
-            <>
-              <div className="gallery-preview">
-                <div className="gallery-main">
-                  {images.find(image => image.isPrimary) ? <img src={images.find(image => image.isPrimary)?.url} alt={images.find(image => image.isPrimary)?.altText ?? selectedProduct.name} /> : <div className="gallery-empty">No main image yet</div>}
-                </div>
-                <div className="gallery-stack">
-                  {images.filter(image => !image.isPrimary).slice(0, 4).map((image, index) => <div className="gallery-stack-item" key={image.id} style={{ transform: `translateX(${index * 12}px) scale(${1 - index * 0.06})`, zIndex: 10 - index }}><img src={image.url} alt={image.altText ?? selectedProduct.name} /></div>)}
-                </div>
-              </div>
-
-              <form className="image-add-form" onSubmit={addImage}>
-                <input required value={imageForm.url} onChange={e => setImageForm({ ...imageForm, url: e.target.value })} placeholder="https://.../soap-box.jpg" />
-                <input value={imageForm.altText} onChange={e => setImageForm({ ...imageForm, altText: e.target.value })} placeholder="Image description" />
-                <label className="checkbox-label"><input type="checkbox" checked={imageForm.isPrimary} onChange={e => setImageForm({ ...imageForm, isPrimary: e.target.checked })} /> Make main image</label>
-                <button className="btn btn-primary" type="submit">Add picture</button>
-              </form>
-
-              {imagesLoading ? <p>Loading pictures...</p> : images.length === 0 ? <p className="muted">No pictures yet. Add the first picture above.</p> : <div className="image-list">
-                {[...images].sort((a, b) => a.sortOrder - b.sortOrder).map((image, index, ordered) => <article className="image-row" key={image.id}>
-                  <img src={image.url} alt={image.altText ?? selectedProduct.name} />
-                  <div className="image-row-info"><strong>{image.isPrimary ? 'Main image' : `Gallery image ${index + 1}`}</strong><span className="muted">{image.altText || image.url}</span></div>
-                  <div className="seller-actions">
-                    {!image.isPrimary && <button className="btn btn-primary" onClick={() => updateImage(image.id, { isPrimary: true })}>Make main</button>}
-                    <button className="btn btn-secondary" disabled={index === 0} onClick={() => moveImage(image, -1)}>←</button>
-                    <button className="btn btn-secondary" disabled={index === ordered.length - 1} onClick={() => moveImage(image, 1)}>→</button>
-                    <button className="btn btn-secondary" onClick={() => deleteImage(image.id)}>Remove</button>
-                  </div>
-                </article>)}
-              </div>}
-            </>
-          )}
+          <select className="admin-select" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Select a product</option>{products.map(product => <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>)}</select>
+          {selectedProduct && <>
+            <div className="gallery-preview"><div className="gallery-main">{images.find(image => image.isPrimary) ? <img src={images.find(image => image.isPrimary)?.url} alt={images.find(image => image.isPrimary)?.altText ?? selectedProduct.name} /> : <div className="gallery-empty">No main image yet</div>}</div><div className="gallery-stack">{images.filter(image => !image.isPrimary).slice(0, 4).map((image, index) => <div className="gallery-stack-item" key={image.id} style={{ transform: `translateX(${index * 12}px) scale(${1 - index * 0.06})`, zIndex: 10 - index }}><img src={image.url} alt={image.altText ?? selectedProduct.name} /></div>)}</div></div>
+            <form className="image-add-form" onSubmit={addImage}><input required value={imageForm.url} onChange={e => setImageForm({ ...imageForm, url: e.target.value })} placeholder="https://.../soap-box.jpg" /><input value={imageForm.altText} onChange={e => setImageForm({ ...imageForm, altText: e.target.value })} placeholder="Image description" /><label className="checkbox-label"><input type="checkbox" checked={imageForm.isPrimary} onChange={e => setImageForm({ ...imageForm, isPrimary: e.target.checked })} /> Make main image</label><button className="btn btn-primary" type="submit">Add picture</button></form>
+            {imagesLoading ? <p>Loading pictures...</p> : images.length === 0 ? <p className="muted">No pictures yet. Add the first picture above.</p> : <div className="image-list">{[...images].sort((a, b) => a.sortOrder - b.sortOrder).map((image, index, ordered) => <article className="image-row" key={image.id}><img src={image.url} alt={image.altText ?? selectedProduct.name} /><div className="image-row-info"><strong>{image.isPrimary ? 'Main image' : `Gallery image ${index + 1}`}</strong><span className="muted">{image.altText || image.url}</span></div><div className="seller-actions">{!image.isPrimary && <button className="btn btn-primary" onClick={() => updateImage(image.id, { isPrimary: true })}>Make main</button>}<button className="btn btn-secondary" disabled={index === 0} onClick={() => moveImage(image, -1)}>←</button><button className="btn btn-secondary" disabled={index === ordered.length - 1} onClick={() => moveImage(image, 1)}>→</button><button className="btn btn-secondary" onClick={() => deleteImage(image.id)}>Remove</button></div></article>)}</div>}
+          </>}
         </section>
 
-        <div className="admin-warning"><strong>Security:</strong> this is the admin/seller management foundation. Authentication and role-based authorization must be added before this page or its API is exposed publicly. Image URLs can be replaced with secure uploads/storage later.</div>
+        <div className="admin-warning"><strong>Security:</strong> Admin API access is protected by the admin session. Product image uploads use protected server-side storage access.</div>
       </div>
     </main>
   );
