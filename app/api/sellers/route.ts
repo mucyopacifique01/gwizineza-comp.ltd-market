@@ -80,18 +80,72 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * Full seller management from the owner console.
+ * Accepts { id, status?, businessName?, ownerName?, phone?, email?, address?, loginUsername?, newPassword? }
+ * and updates only the provided fields, so it covers status changes, detail edits
+ * and password resets with one admin-protected endpoint.
+ */
 export async function PATCH(request: Request) {
   try {
     requireAdmin();
     const body = await request.json();
-    const { id, status } = body;
-    if (!id || !['PENDING', 'APPROVED', 'SUSPENDED'].includes(status)) {
-      return Response.json({ error: 'id and a valid seller status are required' }, { status: 400 });
+    const { id } = body;
+    if (!id || typeof id !== 'string') {
+      return Response.json({ error: 'A seller id is required' }, { status: 400 });
+    }
+
+    const data: Record<string, unknown> = {};
+
+    if (body.status !== undefined) {
+      if (!['PENDING', 'APPROVED', 'SUSPENDED'].includes(body.status)) {
+        return Response.json({ error: 'status must be PENDING, APPROVED or SUSPENDED' }, { status: 400 });
+      }
+      data.status = body.status;
+    }
+
+    for (const field of ['businessName', 'ownerName', 'phone'] as const) {
+      if (body[field] !== undefined) {
+        const value = String(body[field] ?? '').trim();
+        if (!value) return Response.json({ error: `${field} cannot be empty` }, { status: 400 });
+        data[field] = value;
+      }
+    }
+
+    for (const field of ['email', 'address'] as const) {
+      if (body[field] !== undefined) {
+        const value = String(body[field] ?? '').trim();
+        data[field] = value ? value : null;
+      }
+    }
+
+    if (body.loginUsername !== undefined) {
+      const username = String(body.loginUsername ?? '').trim();
+      if (username.length < 3) {
+        return Response.json({ error: 'Seller username must be at least 3 characters' }, { status: 400 });
+      }
+      const clash = await db.seller.findFirst({ where: { loginUsername: username, id: { not: id } }, select: { id: true } });
+      if (clash) {
+        return Response.json({ error: 'Seller username is already in use' }, { status: 409 });
+      }
+      data.loginUsername = username;
+    }
+
+    if (body.newPassword !== undefined) {
+      const password = String(body.newPassword ?? '');
+      if (password.length < 8) {
+        return Response.json({ error: 'Seller password must be at least 8 characters' }, { status: 400 });
+      }
+      data.passwordHash = hashSellerPassword(password);
+    }
+
+    if (Object.keys(data).length === 0) {
+      return Response.json({ error: 'Nothing to update: provide status, seller details or newPassword' }, { status: 400 });
     }
 
     const seller = await db.seller.update({
       where: { id },
-      data: { status },
+      data,
       select: sellerAdminSelect,
     });
 

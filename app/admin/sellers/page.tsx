@@ -28,6 +28,14 @@ export default function SellersAdmin() {
   const [filter, setFilter] = useState<'ALL' | Seller['status']>('ALL');
   const [q, setQ] = useState('');
   const [form, setForm] = useState(emptyForm);
+  const [editing, setEditing] = useState<Seller | null>(null);
+  const [editForm, setEditForm] = useState({ businessName: '', ownerName: '', phone: '', email: '', address: '', loginUsername: '' });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<Seller | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -62,10 +70,44 @@ export default function SellersAdmin() {
     finally { setBusy(null); }
   }
 
+  function openEdit(s: Seller) {
+    setEditForm({ businessName: s.businessName, ownerName: s.ownerName, phone: s.phone, email: s.email ?? '', address: s.address ?? '', loginUsername: s.loginUsername ?? '' });
+    setEditError(null); setEditing(s);
+  }
+
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    setEditSaving(true); setEditError(null);
+    try {
+      const res = await apiFetch('/api/sellers', { method: 'PATCH', body: jsonBody({ id: editing.id, ...editForm, email: editForm.email || null }) });
+      const updated = (res as { seller: Seller }).seller;
+      setData(d => d && { sellers: d.sellers.map(x => (x.id === updated.id ? { ...x, ...updated } : x)) });
+      setView(v => (v && v.id === updated.id ? { ...v, ...updated } : v));
+      toast.show(`${updated.businessName} updated.`);
+      setEditing(null);
+    } catch (err) { setEditError(err instanceof Error ? err.message : 'Could not update seller'); }
+    finally { setEditSaving(false); }
+  }
+
+  async function savePassword(e: FormEvent) {
+    e.preventDefault();
+    if (!resetting) return;
+    setPwSaving(true); setPwError(null);
+    try {
+      await apiFetch('/api/sellers', { method: 'PATCH', body: jsonBody({ id: resetting.id, newPassword }) });
+      toast.show('Seller password reset. Share the new password with the seller.');
+      setNewPassword(''); setResetting(null);
+    } catch (err) { setPwError(err instanceof Error ? err.message : 'Could not reset password'); }
+    finally { setPwSaving(false); }
+  }
+
   const actions = (s: Seller) => (
     <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
       {s.status !== 'APPROVED' && <Button size="sm" loading={busy === s.id} onClick={() => void setStatus(s, 'APPROVED')}>{s.status === 'SUSPENDED' ? 'Reactivate' : 'Approve'}</Button>}
       {s.status === 'APPROVED' && <Button size="sm" variant="outline" loading={busy === s.id} onClick={() => void setStatus(s, 'SUSPENDED')}>Suspend</Button>}
+      <Button size="sm" variant="ghost" iconOnly icon="edit" onClick={() => openEdit(s)} aria-label={`Edit ${s.businessName}`} />
+      <Button size="sm" variant="ghost" iconOnly icon="lock" onClick={() => { setNewPassword(''); setPwError(null); setResetting(s); }} aria-label={`Reset password for ${s.businessName}`} />
       <Button size="sm" variant="ghost" iconOnly icon="eye" onClick={() => setView(s)} aria-label={`View ${s.businessName}`} />
     </div>
   );
@@ -140,9 +182,32 @@ export default function SellersAdmin() {
             </dl>
             {actions(view)}
             <ButtonLink href={`/admin/products`} variant="outline" icon="box">Manage products</ButtonLink>
-            <p className="field-hint">Editing seller details or resetting a password needs an extra API (see upgrade notes).</p>
+            <p className="field-hint">Use the pencil button to edit details or the lock button to reset their password.</p>
           </div>
         )}
+      </Sheet>
+      <Sheet open={Boolean(editing)} onClose={() => setEditing(null)} side="right" title={editing ? `Edit ${editing.businessName}` : 'Edit seller'}>
+        <form className="stack" onSubmit={saveEdit}>
+          <TextField label="Business name" required value={editForm.businessName} onChange={e => setEditForm({ ...editForm, businessName: e.target.value })} />
+          <TextField label="Owner name" required value={editForm.ownerName} onChange={e => setEditForm({ ...editForm, ownerName: e.target.value })} />
+          <div className="form-grid cols-2">
+            <TextField label="Phone" required type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
+            <TextField label="Email" optional type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
+          </div>
+          <TextField label="Business address" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
+          <TextField label="Seller username" required minLength={3} value={editForm.loginUsername} onChange={e => setEditForm({ ...editForm, loginUsername: e.target.value })} autoComplete="off" />
+          {editError && <p className="alert alert-error" role="alert">{editError}</p>}
+          <div className="editor-actions"><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" loading={editSaving}>Save changes</Button></div>
+        </form>
+      </Sheet>
+
+      <Sheet open={Boolean(resetting)} onClose={() => setResetting(null)} side="right" title={resetting ? `Reset password: ${resetting.businessName}` : 'Reset password'}>
+        <form className="stack" onSubmit={savePassword}>
+          <p className="muted small">Set a new password for this seller. The old one stops working immediately. Passwords are stored hashed.</p>
+          <TextField label="New password" required minLength={8} type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" hint="At least 8 characters" />
+          {pwError && <p className="alert alert-error" role="alert">{pwError}</p>}
+          <div className="editor-actions"><Button variant="ghost" onClick={() => setResetting(null)}>Cancel</Button><Button type="submit" loading={pwSaving}>Reset password</Button></div>
+        </form>
       </Sheet>
     </>
   );
