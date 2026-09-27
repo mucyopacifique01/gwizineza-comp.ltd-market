@@ -20,6 +20,8 @@ model Seller {
   phone        String
   email        String?
   address      String?
+  loginUsername String?
+  passwordHash String?
   status       SellerStatus @default(PENDING)
   products     Product[]
   createdAt    DateTime     @default(now())
@@ -27,6 +29,7 @@ model Seller {
 
   @@index([status])
   @@index([businessName])
+  @@index([loginUsername])
 }
 
 model Category {
