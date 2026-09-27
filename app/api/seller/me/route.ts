@@ -2,6 +2,8 @@ import { db } from '@/lib/prisma';
 import { requireSeller } from '@/lib/seller-auth';
 import { apiErrorResponse } from '@/lib/api-errors';
 
+export const dynamic = 'force-dynamic';
+
 export const runtime = 'nodejs';
 
 export async function GET() {
