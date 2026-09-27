@@ -29,7 +29,8 @@ export async function POST(request: Request) {
     if (!seller || seller.status !== 'APPROVED') return Response.json({ error: 'Seller account is not active' }, { status: 403 });
 
     const body = await request.json();
-    const { sku, name, slug, description, priceRwf, stock, imageUrl, categoryId } = body;
+    const { sku, name, slug, description, priceRwf, stock, imageUrl, categoryId, compareAtPriceRwf } = body;
+    if (compareAtPriceRwf != null && (!Number.isInteger(compareAtPriceRwf) || compareAtPriceRwf < 0)) return Response.json({ error: 'Invalid compare-at price' }, { status: 400 });
     if (!sku || !name || !slug || !Number.isInteger(priceRwf) || priceRwf < 0 || !Number.isInteger(stock) || stock < 0) {
       return Response.json({ error: 'sku, name, slug, priceRwf and stock are required' }, { status: 400 });
     }
@@ -52,10 +53,11 @@ export async function POST(request: Request) {
         stock,
         imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null,
         categoryId: categoryId || null,
+        compareAtPriceRwf: compareAtPriceRwf ?? null,
         sellerId,
         isActive: true,
       },
-      include: { category: true, seller: true, images: true },
+      include: { category: true, seller: { select: { id: true, businessName: true } }, images: true },
     });
     return Response.json({ product }, { status: 201 });
   } catch (error) {
@@ -67,8 +69,15 @@ export async function PATCH(request: Request) {
   try {
     const sellerId = requireSeller();
     const body = await request.json();
-    const { id, name, slug, description, priceRwf, stock, imageUrl, categoryId, isActive } = body;
+    const { id, name, slug, description, priceRwf, stock, imageUrl, categoryId, isActive, compareAtPriceRwf } = body;
+    if (compareAtPriceRwf != null && (!Number.isInteger(compareAtPriceRwf) || compareAtPriceRwf < 0)) return Response.json({ error: 'Invalid compare-at price' }, { status: 400 });
     if (!id) return Response.json({ error: 'Product id is required' }, { status: 400 });
+    const activeSeller = await db.seller.findUnique({ where: { id: sellerId }, select: { status: true } });
+    if (!activeSeller || activeSeller.status !== 'APPROVED') return Response.json({ error: 'Seller account is not active' }, { status: 403 });
+    if (categoryId) {
+      const category = await db.category.findUnique({ where: { id: categoryId }, select: { id: true } });
+      if (!category) return Response.json({ error: 'Category not found' }, { status: 404 });
+    }
 
     const existing = await db.product.findFirst({ where: { id, sellerId } });
     if (!existing) return Response.json({ error: 'Product not found for this seller' }, { status: 404 });
@@ -92,8 +101,9 @@ export async function PATCH(request: Request) {
         ...(imageUrl !== undefined ? { imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null } : {}),
         ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
         ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+        ...(compareAtPriceRwf !== undefined ? { compareAtPriceRwf: compareAtPriceRwf ?? null } : {}),
       },
-      include: { category: true, seller: true, images: true },
+      include: { category: true, seller: { select: { id: true, businessName: true } }, images: true },
     });
     return Response.json({ product });
   } catch (error) {

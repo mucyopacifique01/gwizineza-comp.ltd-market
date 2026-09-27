@@ -1,10 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { AuthScreen } from '@/components/dash/AuthScreen';
+import { TextField } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { apiFetch, jsonBody } from '@/lib/http';
 
 export default function SellerLoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -12,42 +16,30 @@ export default function SellerLoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
-      const response = await fetch('/api/seller/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'Seller login failed');
-      router.replace('/seller');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Seller login failed');
-    } finally {
+      await apiFetch('/api/seller/auth/login', { method: 'POST', body: jsonBody({ username, password }) });
+      window.location.href = '/seller';
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Seller login failed');
       setLoading(false);
     }
   }
 
   return (
-    <main className="admin-page">
-      <div className="admin-shell">
-        <div className="admin-card" style={{ maxWidth: 460, margin: '80px auto' }}>
-          <div className="eyebrow">Gwizineza Market</div>
-          <h1>Seller Admin Login</h1>
-          <p className="muted">Sign in to manage products for your approved shop.</p>
-          <form className="form" onSubmit={submit}>
-            <label>Username</label>
-            <input required value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" />
-            <label>Password</label>
-            <input required type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
-            <button className="btn btn-primary" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
-          </form>
-          {error && <p className="note">{error}</p>}
-          <p className="muted" style={{ marginTop: 16 }}><a href="/">← Back to store</a></p>
-        </div>
-      </div>
-    </main>
+    <AuthScreen
+      kicker="Seller console"
+      title="Sign in to your shop"
+      subtitle="Use the username and password you received from Gwizineza Market."
+      aside={<><h2>Your products, connected to more customers.</h2><ul><li><Icon name="box" size={18} /> Add and edit your products</li><li><Icon name="chart" size={18} /> Track stock and sales</li><li><Icon name="receipt" size={18} /> See orders for your items</li></ul></>}
+    >
+      <form className="stack" onSubmit={submit}>
+        <TextField label="Username" required value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" autoFocus />
+        <TextField label="Password" type="password" required value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" />
+        {error && <p className="alert alert-error" role="alert"><Icon name="alert" size={16} /> {error}</p>}
+        <Button type="submit" size="lg" block loading={loading}>Sign in</Button>
+      </form>
+      <p className="muted small" style={{ marginTop: 20 }}>New sellers are created and approved by the owner. <Link href="/contact" className="link-arrow">Contact us</Link></p>
+    </AuthScreen>
   );
 }

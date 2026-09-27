@@ -51,6 +51,11 @@ model Product {
   stock       Int            @default(0)
   imageUrl    String?
   isActive    Boolean        @default(true)
+  // Storefront merchandising (all optional so existing MongoDB documents stay valid)
+  compareAtPriceRwf Int?
+  isFeatured        Boolean?
+  displaySection    String?
+  displayPriority   Int?
   categoryId  String?        @db.ObjectId
   category    Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sellerId    String?        @db.ObjectId
@@ -112,6 +117,7 @@ model Order {
   status          OrderStatus @default(ORDERED)
   customerName    String
   phone           String
+  customerEmail   String?
   deliveryAddress String
   subtotalRwf     Int
   deliveryRwf     Int         @default(0)

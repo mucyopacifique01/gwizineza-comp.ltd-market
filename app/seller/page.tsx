@@ -1,156 +1,55 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-
-type Seller = { id: string; businessName: string; ownerName: string; phone: string; email: string | null; address: string | null; status: string; _count: { products: number } };
-type Category = { id: string; name: string; slug: string };
-type Product = { id: string; sku: string; name: string; slug: string; description: string | null; priceRwf: number; stock: number; imageUrl: string | null; isActive: boolean; categoryId: string | null };
-
-const emptyForm = { sku: '', name: '', slug: '', description: '', priceRwf: '', stock: '0', imageUrl: '', categoryId: '' };
+import Link from 'next/link';
+import { useSeller } from '@/components/dash/SellerContext';
+import { useSellerOrders, useSellerProducts } from '@/components/dash/useSellerProducts';
+import { DashHeader, StatCard } from '@/components/dash/DashShell';
+import { ProductImage } from '@/components/product/ProductImage';
+import { StatusBadge } from '@/components/ui/Badge';
+import { EmptyState, ErrorState } from '@/components/ui/States';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { formatDate, formatRwf } from '@/lib/format';
+import { LOW_STOCK_THRESHOLD } from '@/lib/config';
 
 export default function SellerDashboard() {
-  const [seller, setSeller] = useState<Seller | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState('');
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [meResponse, productsResponse, categoriesResponse] = await Promise.all([
-        fetch('/api/seller/me', { cache: 'no-store' }),
-        fetch('/api/seller/products', { cache: 'no-store' }),
-        fetch('/api/categories', { cache: 'no-store' }),
-      ]);
-      const me = await meResponse.json();
-      const productData = await productsResponse.json();
-      const categoryData = await categoriesResponse.json();
-      if (!meResponse.ok) throw new Error(me.error ?? 'Seller session expired');
-      if (!productsResponse.ok) throw new Error(productData.error ?? 'Could not load products');
-      setSeller(me.seller);
-      setProducts(productData.products ?? []);
-      setCategories(categoryData.categories ?? []);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not load seller dashboard');
-      if (error instanceof Error && /session|authentication/i.test(error.message)) window.location.href = '/seller/login';
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { void load(); }, []);
-
-  function editProduct(product: Product) {
-    setEditingId(product.id);
-    setForm({
-      sku: product.sku,
-      name: product.name,
-      slug: product.slug,
-      description: product.description ?? '',
-      priceRwf: String(product.priceRwf),
-      stock: String(product.stock),
-      imageUrl: product.imageUrl ?? '',
-      categoryId: product.categoryId ?? '',
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function resetForm() {
-    setEditingId('');
-    setForm(emptyForm);
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setMessage('');
-    const payload = {
-      ...form,
-      priceRwf: Number(form.priceRwf),
-      stock: Number(form.stock),
-    };
-    try {
-      const response = await fetch('/api/seller/products', {
-        method: editingId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'Could not save product');
-      setMessage(editingId ? 'Product updated successfully.' : 'Product added successfully.');
-      resetForm();
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not save product');
-    }
-  }
-
-  async function logout() {
-    await fetch('/api/seller/auth/logout', { method: 'POST' });
-    window.location.href = '/seller/login';
-  }
+  const { seller } = useSeller();
+  const products = useSellerProducts();
+  const orders = useSellerOrders();
+  const list = products.data?.products ?? [];
+  const low = list.filter(p => p.isActive && p.stock <= LOW_STOCK_THRESHOLD);
+  const totalStock = list.reduce((s, p) => s + p.stock, 0);
 
   return (
-    <main className="admin-page">
-      <div className="admin-shell">
-        <header className="admin-header">
-          <div>
-            <div className="eyebrow">Gwizineza Market</div>
-            <h1>Seller Admin</h1>
-            <p className="muted">{seller ? seller.businessName : 'Loading seller...'} · Manage your products</p>
+    <>
+      <DashHeader eyebrow="Seller dashboard" title={seller ? `Hello, ${seller.ownerName.split(' ')[0]}` : 'Hello'} description={seller ? `${seller.businessName} · your shop at a glance` : undefined} actions={<ButtonLink href="/seller/products?new=1" icon="plus">Add product</ButtonLink>} />
+      {(products.loading && !products.data) ? <DashboardSkeleton /> : products.error ? <ErrorState description={products.error}><Button onClick={() => void products.reload()}>Retry</Button></ErrorState> : (
+        <div className="stack" style={{ gap: 20 }}>
+          <div className="stat-grid">
+            <StatCard label="Products" value={list.length} icon="box" hint={`${list.filter(p => p.isActive).length} visible`} />
+            <StatCard label="Units in stock" value={totalStock} icon="layers" tone="sky" />
+            <StatCard label="Low stock" value={low.length} icon="alert" tone={low.length ? 'sun' : 'neutral'} hint={`≤ ${LOW_STOCK_THRESHOLD} units`} />
+            <StatCard label="Orders" value={orders.data?.summary.orderCount ?? '—'} icon="receipt" />
+            <StatCard label="Sales" value={orders.data ? formatRwf(orders.data.summary.revenueRwf) : '—'} icon="money" tone="green" hint={orders.data ? `${orders.data.summary.unitsSold} units sold` : undefined} />
           </div>
-          <div className="seller-actions">
-            <a className="btn btn-secondary" href="/">Store</a>
-            <button className="btn btn-secondary" onClick={logout}>Sign out</button>
+          <div className="dash-grid">
+            <section className="card">
+              <div className="row-between"><h2 className="card-title" style={{ margin: 0 }}>Recent orders</h2><Link href="/seller/orders" className="link-arrow small">All orders</Link></div>
+              {orders.error ? <p className="alert alert-error" style={{ marginTop: 12 }}>{orders.error}</p> : !orders.data?.orders.length ? <EmptyState art="orders" title="No orders yet" description="Orders that include your products will show here." /> : (
+                <ul className="mini-list">{orders.data.orders.slice(0, 6).map(o => <li key={o.id}><span className="grow"><strong className="mono">{o.orderNumber}</strong><small className="muted">{o.items.map(i => `${i.productName} × ${i.quantity}`).join(', ')} · {formatDate(o.createdAt)}</small></span><span className="stack" style={{ gap: 4, alignItems: 'flex-end' }}><strong className="small">{formatRwf(o.totalRwf)}</strong><StatusBadge status={o.status} /></span></li>)}</ul>
+              )}
+            </section>
+            <section className="card">
+              <div className="row-between"><h2 className="card-title" style={{ margin: 0 }}>Stock alerts</h2><Link href="/seller/products" className="link-arrow small">Manage stock</Link></div>
+              {low.length === 0 ? <p className="muted small" style={{ marginTop: 16 }}><Icon name="check" size={14} /> All your visible products are well stocked.</p> : (
+                <ul className="mini-list">{low.map(p => <li key={p.id}><span className="mini-thumb"><ProductImage src={p.imageUrl} alt="" sizes="40px" /></span><span className="grow"><strong>{p.name}</strong><small className="muted">{p.sku}</small></span><span className={`badge ${p.stock === 0 ? 'badge-clay' : 'badge-sun'}`}>{p.stock === 0 ? 'Out' : `${p.stock} left`}</span></li>)}</ul>
+              )}
+            </section>
           </div>
-        </header>
-
-        {seller && <section className="admin-stats">
-          <div className="admin-stat"><strong>{seller._count.products}</strong><span>Your products</span></div>
-          <div className="admin-stat"><strong>{seller.status}</strong><span>Account status</span></div>
-          <div className="admin-stat"><strong>{seller.phone}</strong><span>Phone</span></div>
-        </section>}
-
-        <section className="admin-grid">
-          <div className="admin-card">
-            <div className="eyebrow">{editingId ? 'Edit product' : 'Add product'}</div>
-            <h2>{editingId ? 'Update your product' : 'Create a product'}</h2>
-            <form className="form" onSubmit={submit}>
-              <label>SKU</label><input required value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} disabled={Boolean(editingId)} placeholder="SOAP-001" />
-              <label>Product name</label><input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Soap Box" />
-              <label>Slug</label><input required value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="soap-box" />
-              <label>Description</label><textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Product description" />
-              <label>Price (RWF)</label><input required type="number" min="0" step="1" value={form.priceRwf} onChange={e => setForm({ ...form, priceRwf: e.target.value })} />
-              <label>Stock</label><input required type="number" min="0" step="1" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} />
-              <label>Category</label><select value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}><option value="">No category</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-              <label>Image URL</label><input value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://..." />
-              <div className="seller-actions">
-                <button className="btn btn-primary" type="submit">{editingId ? 'Save changes' : 'Add product'}</button>
-                {editingId && <button className="btn btn-secondary" type="button" onClick={resetForm}>Cancel</button>}
-              </div>
-            </form>
-            {message && <p className="note">{message}</p>}
-          </div>
-
-          <div className="admin-card">
-            <div className="eyebrow">My products</div>
-            <h2>Product list</h2>
-            {loading ? <p>Loading products...</p> : products.length === 0 ? <p className="muted">You have not added any products yet.</p> : (
-              <div className="seller-list">
-                {products.map(product => (
-                  <article className="seller-row" key={product.id}>
-                    {product.imageUrl ? <img src={product.imageUrl} alt={product.name} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 12 }} /> : <div style={{ width: 72, height: 72, borderRadius: 12, background: '#eee' }} />}
-                    <div style={{ flex: 1 }}><strong>{product.name}</strong><div className="muted">{product.sku} · {product.priceRwf.toLocaleString()} RWF · Stock {product.stock}</div><div className="muted">{product.isActive ? 'Visible in store when seller is approved' : 'Hidden'}</div></div>
-                    <button className="btn btn-secondary" onClick={() => editProduct(product)}>Edit</button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
-    </main>
+          {list.length === 0 && <EmptyState art="box" title="Your shelf is empty" description="Add your first product. It goes live in the store as soon as you save it."><ButtonLink href="/seller/products?new=1" icon="plus">Add product</ButtonLink></EmptyState>}
+        </div>
+      )}
+    </>
   );
 }

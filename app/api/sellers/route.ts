@@ -4,13 +4,20 @@ import { hashSellerPassword } from '@/lib/seller-auth';
 import { apiErrorResponse } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
+
+/** Everything the admin UI needs, and never the password hash. */
+const sellerAdminSelect = {
+  id: true, businessName: true, ownerName: true, phone: true, email: true, address: true,
+  loginUsername: true, status: true, createdAt: true, updatedAt: true,
+  _count: { select: { products: true } },
+} as const;
 export const runtime = 'nodejs';
 
 export async function GET() {
   try {
     requireAdmin();
     const sellers = await db.seller.findMany({
-      include: { _count: { select: { products: true } } },
+      select: sellerAdminSelect,
       orderBy: { createdAt: 'desc' },
     });
     return Response.json({ sellers });
@@ -85,7 +92,7 @@ export async function PATCH(request: Request) {
     const seller = await db.seller.update({
       where: { id },
       data: { status },
-      include: { _count: { select: { products: true } } },
+      select: sellerAdminSelect,
     });
 
     return Response.json({ seller });
