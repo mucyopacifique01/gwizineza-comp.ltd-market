@@ -6,7 +6,9 @@ services:
     region: frankfurt
     branch: main
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    # Push the Prisma schema (tables, indexes) to MongoDB on every boot so new
+    # models (e.g. Customer) are always in sync, then start the server.
+    startCommand: npx prisma db push --skip-generate && npm start
     autoDeployTrigger: commit
     healthCheckPath: /
     envVars:
