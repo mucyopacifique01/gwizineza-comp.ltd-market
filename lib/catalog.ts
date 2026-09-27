@@ -51,6 +51,20 @@ export const publicProductWhere: Prisma.ProductWhereInput = {
   OR: [{ sellerId: null }, { sellerId: { isSet: false } }, { seller: { status: 'APPROVED' } }],
 };
 
+/**
+ * Runs a catalog fetch and falls back to a safe default instead of throwing,
+ * so a database hiccup degrades a section/page to an empty state rather than
+ * crashing the whole page to the error boundary.
+ */
+export async function safeCatalog<T>(label: string, fallback: T, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error(`[catalog:${label}] unavailable`, error);
+    return fallback;
+  }
+}
+
 const isObjectId = (value: string) => /^[a-f0-9]{24}$/i.test(value);
 
 export type CatalogQuery = {

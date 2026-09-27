@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ensureStarterCatalog, getCategories, getProducts, getSellerOptions } from '@/lib/catalog';
+import { ensureStarterCatalog, getCategories, getProducts, getSellerOptions, safeCatalog } from '@/lib/catalog';
 import { SHOP_PAGE_SIZE } from '@/lib/config';
 import type { SortKey } from '@/lib/types';
 import { ProductCard } from '@/components/product/ProductCard';
@@ -29,15 +29,16 @@ export default async function ShopPage({ searchParams }: { searchParams: Record<
     page: Math.max(1, Number(str(searchParams.page)) || 1),
   };
 
-  await ensureStarterCatalog();
+  // Degrade to an empty result instead of crashing the page if the database is briefly unreachable.
+  await safeCatalog('ensure-starter', undefined, ensureStarterCatalog);
   const [{ products, total }, categories, sellers] = await Promise.all([
-    getProducts({
+    safeCatalog('products', { products: [], total: 0, page: 1, pageSize: 0 } as Awaited<ReturnType<typeof getProducts>>, () => getProducts({
       q: params.q || null, category: params.category || null, seller: params.seller || null,
       minPrice: params.minPrice ? Number(params.minPrice) : null, maxPrice: params.maxPrice ? Number(params.maxPrice) : null,
       inStock: params.inStock, sort: params.sort as SortKey, page: params.page, pageSize: SHOP_PAGE_SIZE,
-    }),
-    getCategories(),
-    getSellerOptions(),
+    })),
+    safeCatalog('categories', [] as Awaited<ReturnType<typeof getCategories>>, getCategories),
+    safeCatalog('seller-options', [] as Awaited<ReturnType<typeof getSellerOptions>>, getSellerOptions),
   ]);
 
   const pages = Math.max(1, Math.ceil(total / SHOP_PAGE_SIZE));

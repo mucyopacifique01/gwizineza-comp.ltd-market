@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ensureStarterCatalog, getBestSellers, getCategories, getProducts, getPublicSellers } from '@/lib/catalog';
+import { ensureStarterCatalog, getBestSellers, getCategories, getProducts, getPublicSellers, safeCatalog } from '@/lib/catalog';
 import { composeHomepage } from '@/lib/merchandising';
 import { Hero } from '@/components/home/Hero';
 import { Spotlight } from '@/components/home/Spotlight';
@@ -16,12 +16,14 @@ import { Icon } from '@/components/ui/Icon';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  await ensureStarterCatalog();
+  // The catalog may be briefly unreachable (deploy, DB hiccup). Degrade to an
+  // empty storefront instead of crashing the whole page to the error boundary.
+  await safeCatalog('ensure-starter', undefined, ensureStarterCatalog);
   const [{ products }, best, categories, sellers] = await Promise.all([
-    getProducts({ sort: 'newest', pageSize: 60 }),
-    getBestSellers(6),
-    getCategories(),
-    getPublicSellers(),
+    safeCatalog('products', { products: [], total: 0, page: 1, pageSize: 0 } as Awaited<ReturnType<typeof getProducts>>, () => getProducts({ sort: 'newest', pageSize: 60 })),
+    safeCatalog('best-sellers', [] as Awaited<ReturnType<typeof getBestSellers>>, () => getBestSellers(6)),
+    safeCatalog('categories', [] as Awaited<ReturnType<typeof getCategories>>, getCategories),
+    safeCatalog('sellers', [] as Awaited<ReturnType<typeof getPublicSellers>>, getPublicSellers),
   ]);
   const home = composeHomepage(products, best);
   const cats = groupByCategory(categories, products);

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getPublicSellers } from '@/lib/catalog';
+import { getPublicSellers, safeCatalog } from '@/lib/catalog';
 import { SellerCard } from '@/components/seller/SellerCard';
 import { EmptyState } from '@/components/ui/States';
 import { Icon } from '@/components/ui/Icon';
@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Sellers', description: 'Meet the approved local sellers on Gwizineza Market.' };
 
 export default async function SellersPage() {
-  const sellers = await getPublicSellers();
+  // Degrade to an empty list instead of crashing the page if the database is briefly unreachable.
+  const sellers = await safeCatalog('public-sellers', [] as Awaited<ReturnType<typeof getPublicSellers>>, getPublicSellers);
   return (
     <div className="container section-tight">
       <header className="page-head sellers-head">
