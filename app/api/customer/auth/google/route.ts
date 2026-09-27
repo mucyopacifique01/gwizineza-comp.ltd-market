@@ -1,10 +1,12 @@
+import { getPublicOrigin } from '@/lib/request-origin';
+
 /** Step 1 of Google sign-up/in: redirect the customer to Google's consent screen. */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const origin = new URL(request.url).origin;
+  const origin = getPublicOrigin(request);
   if (!clientId || !process.env.GOOGLE_CLIENT_SECRET) {
     return Response.redirect(`${origin}/auth?error=google-not-configured`, 302);
   }

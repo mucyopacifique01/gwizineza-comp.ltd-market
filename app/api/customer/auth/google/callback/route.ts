@@ -1,5 +1,6 @@
 import { db } from '@/lib/prisma';
 import { createCustomerSession, customerSessionCookie } from '@/lib/customer-auth';
+import { getPublicOrigin } from '@/lib/request-origin';
 
 /** Step 2 of Google sign-up/in: exchange the code, find-or-create the customer, sign them in. */
 export const runtime = 'nodejs';
@@ -17,7 +18,7 @@ function decodeIdToken(idToken: string): GoogleProfile | null {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const origin = url.origin;
+  const origin = getPublicOrigin(request);
   const code = url.searchParams.get('code');
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
