@@ -4,6 +4,10 @@
 
 Rwanda-focused e-commerce platform for selling goods online. Customers browse products, add items to a cart, provide delivery details, place orders, and track orders.
 
+## Frontend upgrade (2026)
+
+The storefront, owner console and seller console were redesigned. See **docs/FRONTEND-UPGRADE.md** for architecture, API changes, security fixes and known gaps.
+
 ## Stack
 
 - Next.js 14 + React + TypeScript

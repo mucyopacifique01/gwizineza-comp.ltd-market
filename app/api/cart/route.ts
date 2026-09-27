@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
     const cart = await db.cart.findUnique({
       where: { id: cartId },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: { include: { seller: { select: { businessName: true } }, category: { select: { name: true } } } } } } },
     });
 
     if (!cart) return Response.json({ cart: { id: cartId, items: [], subtotalRwf: 0 } });
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       where: { cartId_productId: { cartId, productId } },
       update: { quantity },
       create: { cartId, productId, quantity },
-      include: { product: true },
+      include: { product: { include: { seller: { select: { businessName: true } }, category: { select: { name: true } } } } },
     });
 
     return Response.json({ item }, { status: 201 });

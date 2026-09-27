@@ -1,23 +1,117 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useApi } from '@/lib/use-api';
+import { useQueryParam } from '@/lib/use-query-param';
+import { apiFetch, jsonBody } from '@/lib/http';
+import { formatRwf } from '@/lib/format';
+import { LOW_STOCK_THRESHOLD } from '@/lib/config';
+import type { ProductDTO } from '@/lib/types';
+import { primaryImage } from '@/lib/merchandising';
+import { DashHeader } from '@/components/dash/DashShell';
+import { ProductEditor } from '@/components/dash/ProductEditor';
+import { StockEditor } from '@/components/dash/StockEditor';
+import { ProductImage } from '@/components/product/ProductImage';
+import { EmptyState, ErrorState } from '@/components/ui/States';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Sheet } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Icon } from '@/components/ui/Icon';
+import { useToast } from '@/components/ui/Toast';
 
-type Product = { id:string; sku:string; name:string; slug:string; description:string|null; priceRwf:number; stock:number; imageUrl:string|null; isActive:boolean; category?:{id:string;name:string}|null; seller?:{id:string;businessName:string}|null };
-type Category = { id:string; name:string };
-type Seller = { id:string; businessName:string; status:string };
+type Seller = { id: string; businessName: string; status: string };
+type Category = { id: string; name: string };
 
-const empty = { sku:'', name:'', slug:'', description:'', priceRwf:'', stock:'0', imageUrl:'', categoryId:'', sellerId:'' };
+export default function ProductsAdmin() {
+  const toast = useToast();
+  const products = useApi<{ products: ProductDTO[] }>('/api/products?admin=true', { loginPath: '/admin/login' });
+  const cats = useApi<{ categories: Category[] }>('/api/categories');
+  const sellers = useApi<{ sellers: Seller[] }>('/api/sellers', { loginPath: '/admin/login' });
+  const qNew = useQueryParam('new');
+  const qStock = useQueryParam('stock');
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState<'all' | 'active' | 'archived'>('active');
+  const [stock, setStock] = useState<'all' | 'low' | 'out'>('all');
+  const [sellerFilter, setSellerFilter] = useState('');
+  const [editing, setEditing] = useState<ProductDTO | null | 'new'>(null);
 
-export default function ProductsAdmin(){
- const [products,setProducts]=useState<Product[]>([]); const [categories,setCategories]=useState<Category[]>([]); const [sellers,setSellers]=useState<Seller[]>([]); const [form,setForm]=useState(empty); const [editing,setEditing]=useState<string|null>(null); const [message,setMessage]=useState(''); const [search,setSearch]=useState(''); const [uploading,setUploading]=useState(false);
- async function load(){ const [p,c,s]=await Promise.all([fetch('/api/products?admin=true',{cache:'no-store'}),fetch('/api/categories',{cache:'no-store'}),fetch('/api/sellers',{cache:'no-store'})]); setProducts((await p.json()).products??[]); setCategories((await c.json()).categories??[]); setSellers((await s.json()).sellers??[]); }
- useEffect(()=>{load()},[]);
- function edit(p:Product){setEditing(p.id);setForm({sku:p.sku,name:p.name,slug:p.slug,description:p.description??'',priceRwf:String(p.priceRwf),stock:String(p.stock),imageUrl:p.imageUrl??'',categoryId:p.category?.id??'',sellerId:p.seller?.id??''});window.scrollTo({top:0,behavior:'smooth'})}
- async function uploadImage(file:File){setMessage('');setUploading(true);try{const data=new FormData();data.append('file',file);const r=await fetch('/api/admin/image-upload',{method:'POST',body:data});const d=await r.json();if(!r.ok){setMessage(d.error??'Image upload failed');return}setForm(f=>({...f,imageUrl:d.url}));setMessage('Image uploaded to Supabase. Save the product to use it.')}catch{setMessage('Image upload failed')}finally{setUploading(false)}}
- async function save(e:FormEvent){e.preventDefault();setMessage('');const body={...form,priceRwf:Number(form.priceRwf),stock:Number(form.stock),categoryId:form.categoryId||null,sellerId:form.sellerId||null};const r=await fetch(editing?`/api/products/${editing}`:'/api/products',{method:editing?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok){setMessage(d.error??'Could not save product');return}setMessage(editing?'Product updated.':'Product created.');setEditing(null);setForm(empty);await load()}
- async function archive(id:string){if(!confirm('Archive this product?'))return;const r=await fetch(`/api/products/${id}`,{method:'DELETE'});if(r.ok){setMessage('Product archived.');await load()}}
- const visible=products.filter(p=>`${p.name} ${p.sku}`.toLowerCase().includes(search.toLowerCase()));
- return <main className="admin-page"><div className="admin-shell"><header className="admin-header"><div><div className="eyebrow">Gwizineza Market</div><h1>Product management</h1><p className="muted">Create, edit, price, stock, assign and archive products.</p></div><a className="btn btn-secondary" href="/admin">← Admin</a></header>
- <section className="admin-card"><h2>{editing?'Edit product':'Add product'}</h2><form className="form" onSubmit={save}><label>Product name</label><input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><label>SKU</label><input required value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/><label>Slug</label><input required value={form.slug} onChange={e=>setForm({...form,slug:e.target.value})}/><label>Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><label>Price (RWF)</label><input required type="number" min="0" value={form.priceRwf} onChange={e=>setForm({...form,priceRwf:e.target.value})}/><label>Stock</label><input required type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/><label>Category</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">No category</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><label>Seller</label><select value={form.sellerId} onChange={e=>setForm({...form,sellerId:e.target.value})}><option value="">Gwizineza Market / no seller</option>{sellers.filter(s=>s.status==='APPROVED').map(s=><option key={s.id} value={s.id}>{s.businessName}</option>)}</select><label>Product image</label><input type="file" accept="image/*" disabled={uploading} onChange={e=>{const file=e.target.files?.[0];if(file)void uploadImage(file)}}/><p className="muted">Images are stored in Supabase Storage. Maximum size: 8 MB.</p><input type="url" value={form.imageUrl} onChange={e=>setForm({...form,imageUrl:e.target.value})} placeholder="Or paste an image URL"/><div className="actions"><button className="btn btn-primary" disabled={uploading}>{uploading?'Uploading image…':editing?'Update product':'Create product'}</button>{editing&&<button type="button" className="btn btn-secondary" onClick={()=>{setEditing(null);setForm(empty)}}>Cancel</button>}</div></form>{message&&<p className="note">{message}</p>}</section>
- <section className="admin-card"><div className="actions"><h2>Products</h2><input placeholder="Search name or SKU" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="seller-list">{visible.map(p=><article className="seller-row" key={p.id}><div>{p.imageUrl&&<img src={p.imageUrl} alt="" style={{width:64,height:64,objectFit:'cover',borderRadius:8,marginBottom:8}}/>}<strong>{p.name}</strong><div className="muted">{p.sku} · {p.priceRwf.toLocaleString()} RWF · Stock: {p.stock}</div><div className="muted">{p.category?.name??'No category'} · {p.seller?.businessName??'Marketplace'} · {p.isActive?'Active':'Archived'}</div></div><div className="seller-actions"><button className="btn btn-primary" onClick={()=>edit(p)}>Edit</button>{p.isActive&&<button className="btn btn-secondary" onClick={()=>archive(p.id)}>Archive</button>}</div></article>)}</div></section></div></main>
+  useEffect(() => { if (qNew) setEditing('new'); }, [qNew]);
+  useEffect(() => { if (qStock === 'low') setStock('low'); }, [qStock]);
+
+  const list = useMemo(() => (products.data?.products ?? []).filter(p =>
+    (status === 'all' || (status === 'active' ? p.isActive : !p.isActive)) &&
+    (stock === 'all' || (stock === 'out' ? p.stock === 0 : p.stock <= LOW_STOCK_THRESHOLD)) &&
+    (!sellerFilter || (sellerFilter === 'none' ? !p.seller : p.seller?.id === sellerFilter)) &&
+    `${p.name} ${p.sku} ${p.category?.name ?? ''}`.toLowerCase().includes(q.toLowerCase())), [products.data, q, status, stock, sellerFilter]);
+
+  async function toggleActive(p: ProductDTO) {
+    try {
+      if (p.isActive) { if (!window.confirm(`Archive “${p.name}”? It will be hidden from the store.`)) return; await apiFetch(`/api/products/${p.id}`, { method: 'DELETE' }); }
+      else await apiFetch(`/api/products/${p.id}`, { method: 'PATCH', body: jsonBody({ isActive: true }) });
+      toast.show(p.isActive ? 'Product archived' : 'Product restored');
+      await products.reload();
+    } catch (e) { toast.show(e instanceof Error ? e.message : 'Action failed', { tone: 'error' }); }
+  }
+
+  async function saveStock(p: ProductDTO, value: number) {
+    await apiFetch(`/api/products/${p.id}`, { method: 'PATCH', body: jsonBody({ stock: value }) });
+    products.setData(d => d && { products: d.products.map(x => (x.id === p.id ? { ...x, stock: value } : x)) });
+    toast.show(`Stock for ${p.name}: ${value}`);
+  }
+
+  const all = products.data?.products ?? [];
+  const lowCount = all.filter(p => p.isActive && p.stock <= LOW_STOCK_THRESHOLD).length;
+
+  return (
+    <>
+      <DashHeader eyebrow="Catalogue" title="Products & inventory" description={`${all.length} products · ${lowCount} low or out of stock`} actions={<Button icon="plus" onClick={() => setEditing('new')}>Add product</Button>} />
+      <div className="dash-toolbar">
+        <div className="input-group grow"><Icon name="search" size={18} /><input className="input" placeholder="Search name, SKU or category" value={q} onChange={e => setQ(e.target.value)} aria-label="Search products" /></div>
+        <select className="select select-auto" value={status} onChange={e => setStatus(e.target.value as typeof status)} aria-label="Visibility"><option value="active">Live</option><option value="archived">Archived</option><option value="all">All</option></select>
+        <select className="select select-auto" value={stock} onChange={e => setStock(e.target.value as typeof stock)} aria-label="Stock"><option value="all">Any stock</option><option value="low">Low stock (≤{LOW_STOCK_THRESHOLD})</option><option value="out">Out of stock</option></select>
+        <select className="select select-auto" value={sellerFilter} onChange={e => setSellerFilter(e.target.value)} aria-label="Seller"><option value="">All sellers</option><option value="none">Gwizineza Market</option>{(sellers.data?.sellers ?? []).map(s => <option key={s.id} value={s.id}>{s.businessName}</option>)}</select>
+      </div>
+
+      {products.loading && !products.data ? <Skeleton height={420} radius={24} /> : products.error ? <ErrorState description={products.error}><Button onClick={() => void products.reload()}>Retry</Button></ErrorState> : list.length === 0 ? (
+        <EmptyState art="box" title="No products found" description="Try different filters or add a new product."><Button icon="plus" onClick={() => setEditing('new')}>Add product</Button></EmptyState>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Product</th><th className="hide-md">Category</th><th className="hide-md">Seller</th><th className="num">Price</th><th>Stock</th><th>Status</th><th /></tr></thead>
+            <tbody>
+              {list.map(p => (
+                <tr key={p.id} className={!p.isActive ? 'row-muted' : undefined}>
+                  <td><div className="row"><span className="mini-thumb"><ProductImage src={primaryImage(p)} alt="" sizes="48px" /></span><div><strong>{p.name}</strong><div className="muted tiny mono">{p.sku}</div></div></div></td>
+                  <td className="hide-md">{p.category?.name ?? <span className="muted">—</span>}</td>
+                  <td className="hide-md">{p.seller?.businessName ?? <span className="muted">Marketplace</span>}</td>
+                  <td className="num"><strong>{formatRwf(p.priceRwf)}</strong>{p.compareAtPriceRwf ? <div className="muted tiny"><s>{formatRwf(p.compareAtPriceRwf)}</s></div> : null}</td>
+                  <td><StockEditor value={p.stock} onSave={v => saveStock(p, v)} /></td>
+                  <td>{p.isActive ? <Badge tone="green" dot>Live</Badge> : <Badge tone="outline">Archived</Badge>}{p.isFeatured && <Badge tone="sun" className="ml-4">Featured</Badge>}</td>
+                  <td><div className="row" style={{ justifyContent: 'flex-end', gap: 4 }}>
+                    <Button size="sm" variant="ghost" iconOnly icon="edit" onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`} />
+                    <Button size="sm" variant="ghost" iconOnly icon={p.isActive ? 'trash' : 'refresh'} onClick={() => void toggleActive(p)} aria-label={p.isActive ? `Archive ${p.name}` : `Restore ${p.name}`} />
+                  </div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Sheet open={editing !== null} onClose={() => setEditing(null)} side="right" title={editing === 'new' ? 'New product' : 'Edit product'}>
+        {editing !== null && (
+          <ProductEditor
+            key={editing === 'new' ? 'new' : editing.id}
+            mode="admin"
+            product={editing === 'new' ? null : editing}
+            categories={cats.data?.categories ?? []}
+            sellers={sellers.data?.sellers ?? []}
+            onCancel={() => setEditing(null)}
+            onSaved={() => { setEditing(null); void products.reload(); }}
+          />
+        )}
+      </Sheet>
+    </>
+  );
 }
