@@ -146,3 +146,16 @@ model OrderItem {
   @@index([orderId])
   @@index([sellerId])
 }
+
+model Customer {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String?   @unique
+  phone        String?   @unique
+  passwordHash String?
+  googleId     String?   @unique
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+}
