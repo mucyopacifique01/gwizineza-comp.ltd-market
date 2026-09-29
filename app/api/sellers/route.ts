@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Seller username is already in use' }, { status: 409 });
     }
 
-    const seller = await db.seller.create({
+    // Verify MongoDB is reachable before creating the seller so the admin gets a useful error.\n    await db.$runCommandRaw({ ping: 1 });\n\n    const seller = await db.seller.create({
       data: {
         businessName: String(businessName).trim(),
         ownerName: String(ownerName).trim(),
