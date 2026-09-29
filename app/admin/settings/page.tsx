@@ -51,6 +51,7 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [dbHealth, setDbHealth] = useState<'unknown' | 'checking' | 'ok' | 'error'>('unknown');
 
   useEffect(() => {
     apiFetch<{ settings: Settings }>('/api/admin/settings')
@@ -69,6 +70,18 @@ export default function AdminSettingsPage() {
     setForm(current => ({ ...current, [key]: value } as Settings));
     setError('');
   };
+
+  async function checkDatabase() {
+    setDbHealth('checking');
+    try {
+      await apiFetch<{ ok: boolean }>('/api/admin/diagnostics/database');
+      setDbHealth('ok');
+      toast.show('MongoDB is reachable');
+    } catch (e) {
+      setDbHealth('error');
+      toast.show(e instanceof Error ? e.message : 'MongoDB check failed', { tone: 'error' });
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -137,6 +150,15 @@ export default function AdminSettingsPage() {
           </div>
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 20 }}>
+        <div className="row-between">
+          <div><h2 className="card-title">System health</h2><p className="muted small">Verify that the deployed application can reach MongoDB.</p></div>
+          <Button variant="outline" loading={dbHealth === 'checking'} onClick={() => void checkDatabase()} icon="refresh">Check database</Button>
+        </div>
+        {dbHealth === 'ok' && <p className="alert alert-success" style={{ marginTop: 14 }}><Icon name="check" size={16} /> MongoDB is reachable.</p>}
+        {dbHealth === 'error' && <p className="alert alert-error" style={{ marginTop: 14 }}><Icon name="alert" size={16} /> MongoDB check failed. Open Render logs for the server-side error.</p>}
+      </section>
 
       {error && <p className="alert alert-error" role="alert" style={{ marginTop: 16 }}><Icon name="alert" size={16} /> {error}</p>}
       <div className="editor-actions" style={{ marginTop: 20 }}>
