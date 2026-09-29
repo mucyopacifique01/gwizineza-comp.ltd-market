@@ -103,7 +103,18 @@ export default function AdminSettingsPage() {
     }
   }
 
-  if (loading) return <><DashHeader eyebrow="Super admin" title="Settings" description="Control the public identity and footer of the marketplace." /><Skeleton height={620} radius={24} />;
+  if (loading) {
+    return (
+      <>
+        <DashHeader
+          eyebrow="Super admin"
+          title="Settings"
+          description="Control the public identity and footer of the marketplace."
+        />
+        <Skeleton height={620} radius={24} />
+      </>
+    );
+  }
 
   return (
     <>
