@@ -53,7 +53,7 @@ export function SearchOverlay({ open, onClose, categories }: { open: boolean; on
       apiFetch<{ products: ProductDTO[] }>(`/api/products?q=${encodeURIComponent(term)}&pageSize=6`, { signal: controller.signal })
         .then(d => { setResults(d.products); setError(null); })
         .catch(e => { if ((e as Error).name !== 'AbortError') setError((e as Error).message); })
-        .finally(() => setLoading(false));
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 220);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [q]);
