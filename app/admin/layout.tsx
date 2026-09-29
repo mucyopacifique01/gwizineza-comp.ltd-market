@@ -11,6 +11,7 @@ const NAV: DashNavItem[] = [
   { href: '/admin/categories', label: 'Categories', icon: 'tag' },
   { href: '/admin/sellers', label: 'Sellers', icon: 'store' },
   { href: '/admin/customers', label: 'Customers', icon: 'users' },
+  { href: '/admin/settings', label: 'Settings', icon: 'settings' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
