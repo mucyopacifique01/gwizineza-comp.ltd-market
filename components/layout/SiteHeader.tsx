@@ -19,7 +19,7 @@ const NAV = [
   { href: '/contact', label: 'Contact' },
 ];
 
-export function SiteHeader({ categories }: { categories: CategoryDTO[] }) {
+export function SiteHeader({ categories, announcement }: { categories: CategoryDTO[]; announcement?: { enabled: boolean; text: string } }) {
   const pathname = usePathname();
   const { count, bump } = useCart();
   const [scrolled, setScrolled] = useState(false);
@@ -47,11 +47,12 @@ export function SiteHeader({ categories }: { categories: CategoryDTO[] }) {
   useEffect(() => { setMenu(false); setSearch(false); }, [pathname]);
 
   const active = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  const showAnnouncement = announcement?.enabled !== false;
 
   return (
     <>
       <header className={`site-header${scrolled ? ' is-scrolled' : ''}`}>
-        <div className="announce"><div className="container announce-inner"><span><Icon name="pin" size={14} /> Serving customers from Kabarondo, Rwanda</span><span className="announce-sep" aria-hidden="true" /><span className="hide-sm"><Icon name="receipt" size={14} /> Order confirmation you can share on WhatsApp</span></div></div>
+        {showAnnouncement && <div className="announce"><div className="container announce-inner"><span><Icon name="pin" size={14} /> {announcement?.text || 'Serving customers from Kabarondo, Rwanda'}</span><span className="announce-sep" aria-hidden="true" /><span className="hide-sm"><Icon name="receipt" size={14} /> Order confirmation you can share on WhatsApp</span></div></div>}
         <div className="container header-inner">
           <button className="btn btn-ghost btn-icon only-mobile" onClick={() => setMenu(true)} aria-label="Open menu"><Icon name="menu" /></button>
           <Logo />
@@ -78,7 +79,7 @@ export function SiteHeader({ categories }: { categories: CategoryDTO[] }) {
         </nav>
         {categories.length > 0 && <>
           <div className="eyebrow" style={{ marginTop: 28 }}>Categories</div>
-          <div className="chip-cloud" style={{ marginTop: 12 }}>{categories.map(c => <Link key={c.id} href={`/shop?category=${c.slug}`} className="chip">{c.name}</Link>)}</div>
+          <div className="chip-cloud" style={{ marginTop: 12 }}>{categories.map(c => <Link key={c.id} href={'/shop?category=' + c.slug} className="chip">{c.name}</Link>)}</div>
         </>}
         <div className="drawer-accounts">
           <Link href="/auth" className="btn btn-outline btn-block"><Icon name="user" size={18} /> Customer account</Link>
