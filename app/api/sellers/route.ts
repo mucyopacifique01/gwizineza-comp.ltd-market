@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         address: typeof address === 'string' && address.trim() ? address.trim() : null,
         loginUsername: username,
         passwordHash: hashSellerPassword(String(password)),
-        status: 'PENDING',
+        status: 'APPROVED',
       },
     });
 
