@@ -1,6 +1,6 @@
 import { db } from '@/lib/prisma';
 
-export const DEFAULT_SITE_SETTINGS = {
+const DEFAULT_SITE_SETTINGS_BASE = {
   key: 'site',
   siteName: 'Gwizineza Market',
   tagline: 'Everyday goods from trusted local sellers, connected in one market.',
@@ -16,9 +16,29 @@ export const DEFAULT_SITE_SETTINGS = {
   announcementEnabled: true,
   mapLat: -2.0127,
   mapLng: 30.5585,
-} as const;
+};
 
-export type SiteSettingsDTO = typeof DEFAULT_SITE_SETTINGS & {
+export const DEFAULT_SITE_SETTINGS = {
+  ...DEFAULT_SITE_SETTINGS_BASE,
+} satisfies {
+  key: string;
+  siteName: string;
+  tagline: string;
+  location: string;
+  region: string;
+  phone: string;
+  email: string;
+  whatsapp: string;
+  copyrightText: string;
+  copyrightYear: number;
+  footerCredit: string;
+  announcementText: string;
+  announcementEnabled: boolean;
+  mapLat: number;
+  mapLng: number;
+};
+
+export type SiteSettingsDTO = Omit<typeof DEFAULT_SITE_SETTINGS, 'id' | 'createdAt' | 'updatedAt'> & {
   id?: string;
   createdAt?: string;
   updatedAt?: string;
