@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import type { CategoryDTO } from '@/lib/types';
 import { site } from '@/lib/config';
+import { getSiteSettings } from '@/lib/site-settings';
 import { Logo } from '@/components/brand/Logo';
 import { Hills } from '@/components/brand/Motifs';
 import { Icon, type IconName } from '@/components/ui/Icon';
 
-export function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
+export async function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
+  const settings = await getSiteSettings();
+  const whatsapp = settings.whatsapp?.replace(/\D/g, '') || site.whatsapp;
+  const phone = settings.phone || site.phone;
+  const email = settings.email || site.email;
   const socials = ([
     ['instagram', site.social.instagram, 'Instagram'],
     ['facebook', site.social.facebook, 'Facebook'],
@@ -24,15 +29,15 @@ export function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
           </div>
           <div className="row wrap">
             <Link href="/shop" className="btn btn-sun btn-lg">Start shopping <Icon name="arrowRight" size={18} /></Link>
-            {site.whatsapp && <a href={`https://wa.me/${site.whatsapp}`} className="btn btn-outline btn-lg footer-outline" target="_blank" rel="noopener noreferrer"><Icon name="whatsapp" size={18} /> WhatsApp us</a>}
+            {whatsapp && <a href={'https://wa.me/' + whatsapp} className="btn btn-outline btn-lg footer-outline" target="_blank" rel="noopener noreferrer"><Icon name="whatsapp" size={18} /> WhatsApp us</a>}
           </div>
         </div>
 
         <div className="footer-grid">
           <div className="footer-brand">
             <Logo light />
-            <p>{site.tagline}</p>
-            <p className="footer-loc"><Icon name="pin" size={16} /> {site.location}</p>
+            <p>{settings.tagline}</p>
+            <p className="footer-loc"><Icon name="pin" size={16} /> {settings.location}</p>
             {socials.length > 0 && <div className="row" style={{ marginTop: 16 }}>{socials.map(([icon, url, label]) => <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="social" aria-label={label}><Icon name={icon} size={18} /></a>)}</div>}
           </div>
           <nav aria-label="Marketplace">
@@ -44,7 +49,7 @@ export function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
           </nav>
           <nav aria-label="Categories">
             <h3>Categories</h3>
-            {categories.slice(0, 5).map(c => <Link key={c.id} href={`/shop?category=${c.slug}`}>{c.name}</Link>)}
+            {categories.slice(0, 5).map(c => <Link key={c.id} href={'/shop?category=' + c.slug}>{c.name}</Link>)}
             {categories.length === 0 && <Link href="/categories">Browse all</Link>}
           </nav>
           <nav aria-label="Company">
@@ -57,10 +62,10 @@ export function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
           </nav>
           <div>
             <h3>Visit & contact</h3>
-            <p className="footer-text">{site.region}</p>
-            {site.phone && <a href={`tel:${site.phone.replace(/\s/g, '')}`} className="footer-link"><Icon name="phone" size={16} /> {site.phone}</a>}
-            {site.email && <a href={`mailto:${site.email}`} className="footer-link"><Icon name="mail" size={16} /> {site.email}</a>}
-            {site.whatsapp && <a href={`https://wa.me/${site.whatsapp}`} target="_blank" rel="noopener noreferrer" className="footer-link"><Icon name="whatsapp" size={16} /> WhatsApp</a>}
+            <p className="footer-text">{settings.region}</p>
+            {phone && <a href={'tel:' + phone.replace(/\s/g, '')} className="footer-link"><Icon name="phone" size={16} /> {phone}</a>}
+            {email && <a href={'mailto:' + email} className="footer-link"><Icon name="mail" size={16} /> {email}</a>}
+            {whatsapp && <a href={'https://wa.me/' + whatsapp} target="_blank" rel="noopener noreferrer" className="footer-link"><Icon name="whatsapp" size={16} /> WhatsApp</a>}
             <div className="footer-portals">
               <Link href="/seller/login">Seller login</Link>
               <Link href="/admin/login">Owner access</Link>
@@ -69,8 +74,8 @@ export function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
         </div>
 
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} Gwizineza Market · Kabarondo, Rwanda</span>
-          <span>Created by <strong>{site.owner}</strong></span>
+          <span>© {settings.copyrightYear} {settings.copyrightText} · {settings.location}</span>
+          <span>{settings.footerCredit}</span>
         </div>
       </div>
     </footer>
