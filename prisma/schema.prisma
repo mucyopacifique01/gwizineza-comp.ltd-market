@@ -25,7 +25,7 @@ model Seller {
   status       SellerStatus @default(PENDING)
   products     Product[]
   createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  updatedAt   DateTime     @updatedAt
 
   @@index([status])
   @@index([businessName])
@@ -89,7 +89,7 @@ model Cart {
   id        String     @id @default(auto()) @map("_id") @db.ObjectId
   items     CartItem[]
   createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  updatedAt DateTime  @updatedAt
 }
 
 model CartItem {
@@ -157,5 +157,25 @@ model Customer {
   avatarUrl    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
 
+model SiteSettings {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  key                 String   @unique
+  siteName            String
+  tagline             String
+  location            String
+  region              String
+  phone               String?
+  email               String?
+  whatsapp            String?
+  copyrightText       String
+  copyrightYear       Int
+  footerCredit        String
+  announcementText    String?
+  announcementEnabled Boolean  @default(true)
+  mapLat              Float?
+  mapLng              Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
