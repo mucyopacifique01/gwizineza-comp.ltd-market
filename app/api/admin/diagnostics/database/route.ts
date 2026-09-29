@@ -16,6 +16,8 @@ export async function GET() {
     await db.$runCommandRaw({ ping: 1 });
     return Response.json({ ok: true, database: 'MongoDB reachable' });
   } catch (error) {
+    if (error instanceof Response) return error;
+
     const err = error instanceof Error ? error : new Error(String(error));
     const code = 'code' in err && typeof (err as { code?: unknown }).code === 'string'
       ? (err as { code: string }).code
