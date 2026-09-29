@@ -43,6 +43,8 @@ const defaults: Settings = {
   mapLng: 30.5585,
 };
 
+type TextSettingKey = Exclude<keyof Settings, 'copyrightYear' | 'announcementEnabled' | 'mapLat' | 'mapLng'>;
+
 export default function AdminSettingsPage() {
   const toast = useToast();
   const [form, setForm] = useState<Settings>(defaults);
@@ -57,8 +59,14 @@ export default function AdminSettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const set = (key: keyof Settings) => (event: { target: { value: string } }) => {
+  const setText = (key: TextSettingKey) => (event: { target: { value: string } }) => {
     setForm(current => ({ ...current, [key]: event.target.value }));
+    setError('');
+  };
+
+  const setNumber = (key: 'copyrightYear' | 'mapLat' | 'mapLng') => (event: { target: { value: string } }) => {
+    const value = event.target.value === '' ? null : Number(event.target.value);
+    setForm(current => ({ ...current, [key]: value } as Settings));
     setError('');
   };
 
@@ -69,8 +77,8 @@ export default function AdminSettingsPage() {
       const payload = {
         ...form,
         copyrightYear: Number(form.copyrightYear),
-        mapLat: form.mapLat === null || form.mapLat === '' ? null : Number(form.mapLat),
-        mapLng: form.mapLng === null || form.mapLng === '' ? null : Number(form.mapLng),
+        mapLat: form.mapLat === null ? null : Number(form.mapLat),
+        mapLng: form.mapLng === null ? null : Number(form.mapLng),
       };
       const data = await apiFetch<{ settings: Settings }>('/api/admin/settings', { method: 'PATCH', body: jsonBody(payload) });
       setForm(data.settings);
@@ -92,29 +100,29 @@ export default function AdminSettingsPage() {
         <section className="card">
           <div className="card-head"><div><h2 className="card-title">Store identity</h2><p className="muted small">These values are safe to show publicly.</p></div></div>
           <div className="form-grid cols-2">
-            <TextField label="Site name" required value={form.siteName} onChange={set('siteName')} className="span-2" />
-            <TextField label="Tagline" required value={form.tagline} onChange={set('tagline')} className="span-2" />
-            <TextField label="Location" required value={form.location} onChange={set('location')} />
-            <TextField label="Region" required value={form.region} onChange={set('region')} />
-            <TextField label="Phone" type="tel" value={form.phone ?? ''} onChange={set('phone')} />
-            <TextField label="Email" type="email" value={form.email ?? ''} onChange={set('email')} />
-            <TextField label="WhatsApp number" value={form.whatsapp ?? ''} onChange={set('whatsapp')} hint="Include country code, e.g. 2507XXXXXXXX." />
+            <TextField label="Site name" required value={form.siteName} onChange={setText('siteName')} className="span-2" />
+            <TextField label="Tagline" required value={form.tagline} onChange={setText('tagline')} className="span-2" />
+            <TextField label="Location" required value={form.location} onChange={setText('location')} />
+            <TextField label="Region" required value={form.region} onChange={setText('region')} />
+            <TextField label="Phone" type="tel" value={form.phone ?? ''} onChange={setText('phone')} />
+            <TextField label="Email" type="email" value={form.email ?? ''} onChange={setText('email')} />
+            <TextField label="WhatsApp number" value={form.whatsapp ?? ''} onChange={setText('whatsapp')} hint="Include country code, e.g. 2507XXXXXXXX." />
           </div>
         </section>
 
         <section className="card">
           <div className="card-head"><div><h2 className="card-title">Footer & copyright</h2><p className="muted small">Update the bottom copyright line without changing code.</p></div></div>
           <div className="form-grid cols-2">
-            <TextField label="Copyright text" required value={form.copyrightText} onChange={set('copyrightText')} />
-            <TextField label="Copyright year" required type="number" min={2000} max={2100} value={String(form.copyrightYear)} onChange={set('copyrightYear')} />
-            <TextField label="Footer credit" required value={form.footerCredit} onChange={set('footerCredit')} className="span-2" />
+            <TextField label="Copyright text" required value={form.copyrightText} onChange={setText('copyrightText')} />
+            <TextField label="Copyright year" required type="number" min={2000} max={2100} value={String(form.copyrightYear)} onChange={setNumber('copyrightYear')} />
+            <TextField label="Footer credit" required value={form.footerCredit} onChange={setText('footerCredit')} className="span-2" />
           </div>
           <p className="field-hint" style={{ marginTop: 12 }}>The storefront will show “© {form.copyrightYear} {form.copyrightText}” and the credit you enter.</p>
         </section>
 
         <section className="card">
           <div className="card-head"><div><h2 className="card-title">Announcement bar</h2><p className="muted small">Control the small message at the top of the storefront.</p></div></div>
-          <TextAreaField label="Announcement text" optional value={form.announcementText ?? ''} onChange={set('announcementText')} rows={3} maxLength={240} />
+          <TextAreaField label="Announcement text" optional value={form.announcementText ?? ''} onChange={setText('announcementText')} rows={3} maxLength={240} />
           <label className="switch" style={{ marginTop: 14 }}>
             <input type="checkbox" checked={form.announcementEnabled} onChange={e => setForm(current => ({ ...current, announcementEnabled: e.target.checked }))} />
             <span className="switch-ui" aria-hidden="true" /> Show announcement bar
@@ -124,8 +132,8 @@ export default function AdminSettingsPage() {
         <section className="card">
           <div className="card-head"><div><h2 className="card-title">Map location</h2><p className="muted small">Optional public map pin for the business location.</p></div></div>
           <div className="form-grid cols-2">
-            <TextField label="Latitude" type="number" step="any" value={form.mapLat ?? ''} onChange={set('mapLat')} />
-            <TextField label="Longitude" type="number" step="any" value={form.mapLng ?? ''} onChange={set('mapLng')} />
+            <TextField label="Latitude" type="number" step="any" value={form.mapLat ?? ''} onChange={setNumber('mapLat')} />
+            <TextField label="Longitude" type="number" step="any" value={form.mapLng ?? ''} onChange={setNumber('mapLng')} />
           </div>
         </section>
       </div>
