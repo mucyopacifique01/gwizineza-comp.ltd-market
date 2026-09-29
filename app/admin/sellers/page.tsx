@@ -52,7 +52,7 @@ export default function SellersAdmin() {
     setSaving(true); setFormError(null);
     try {
       await apiFetch('/api/sellers', { method: 'POST', body: jsonBody(form) });
-      toast.show('Seller created as pending. Approve them to allow login.');
+      toast.show('Seller created and assigned successfully. They can log in now.');
       setForm(emptyForm); setCreating(false); await reload();
     } catch (err) { setFormError(err instanceof Error ? err.message : 'Could not create seller'); }
     finally { setSaving(false); }
@@ -104,7 +104,7 @@ export default function SellersAdmin() {
 
   const actions = (s: Seller) => (
     <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
-      {s.status !== 'APPROVED' && <Button size="sm" loading={busy === s.id} onClick={() => void setStatus(s, 'APPROVED')}>{s.status === 'SUSPENDED' ? 'Reactivate' : 'Approve'}</Button>}
+      {s.status === 'SUSPENDED' && <Button size="sm" loading={busy === s.id} onClick={() => void setStatus(s, 'APPROVED')}>Reactivate</Button>}
       {s.status === 'APPROVED' && <Button size="sm" variant="outline" loading={busy === s.id} onClick={() => void setStatus(s, 'SUSPENDED')}>Suspend</Button>}
       <Button size="sm" variant="ghost" iconOnly icon="edit" onClick={() => openEdit(s)} aria-label={`Edit ${s.businessName}`} />
       <Button size="sm" variant="ghost" iconOnly icon="lock" onClick={() => { setNewPassword(''); setPwError(null); setResetting(s); }} aria-label={`Reset password for ${s.businessName}`} />
@@ -114,7 +114,7 @@ export default function SellersAdmin() {
 
   return (
     <>
-      <DashHeader eyebrow="Marketplace" title="Sellers" description="Create seller accounts, approve them, and suspend when needed. New sellers start as pending." actions={<Button icon="plus" onClick={() => setCreating(true)}>Create seller</Button>} />
+      <DashHeader eyebrow="Marketplace" title="Sellers" description="Create seller accounts with their identity, assign them to the marketplace, and manage their access." actions={<Button icon="plus" onClick={() => setCreating(true)}>Create seller</Button>} />
       <div className="stat-grid stat-grid-3" style={{ marginBottom: 20 }}>
         <StatCard label="Approved" value={count('APPROVED')} icon="shield" tone="green" />
         <StatCard label="Pending approval" value={count('PENDING')} icon="clock" tone={count('PENDING') ? 'sun' : 'neutral'} />
@@ -149,7 +149,7 @@ export default function SellersAdmin() {
 
       <Sheet open={creating} onClose={() => setCreating(false)} side="right" title="Create seller">
         <form className="stack" onSubmit={create}>
-          <p className="muted small">The seller starts as <strong>pending</strong>. Share the login details after you approve the account. Passwords are stored hashed.</p>
+          <p className="muted small">Enter the seller identity and login details. The seller is created as approved and can log in immediately. Passwords are stored hashed.</p>
           <TextField label="Business name" required value={form.businessName} onChange={e => setForm({ ...form, businessName: e.target.value })} placeholder="ABC Shop" />
           <TextField label="Owner name" required value={form.ownerName} onChange={e => setForm({ ...form, ownerName: e.target.value })} />
           <div className="form-grid cols-2">
