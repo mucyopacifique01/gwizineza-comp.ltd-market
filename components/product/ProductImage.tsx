@@ -1,11 +1,20 @@
+'use client';
+
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { initials } from '@/lib/format';
 
 const optimizable = (src: string) => src.startsWith('/') || /^https:\/\/[^/]+\.supabase\.co\//.test(src);
 
-/** Next/Image wrapper. Parent must be position:relative with a size. Unknown hosts render unoptimized. */
+/** Next/Image wrapper. Parent must be position:relative with a size. Broken remote images fall back to a clean placeholder. */
 export function ProductImage({ src, alt, sizes = '(max-width: 640px) 50vw, 25vw', priority, fit = 'contain', className }: { src: string | null | undefined; alt: string; sizes?: string; priority?: boolean; fit?: 'contain' | 'cover'; className?: string }) {
-  if (!src) return <ImagePlaceholder name={alt} />;
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) return <ImagePlaceholder name={alt} />;
   return (
     <Image
       src={src}
@@ -14,6 +23,7 @@ export function ProductImage({ src, alt, sizes = '(max-width: 640px) 50vw, 25vw'
       sizes={sizes}
       priority={priority}
       unoptimized={!optimizable(src)}
+      onError={() => setFailed(true)}
       className={['pimg', `pimg-${fit}`, className].filter(Boolean).join(' ')}
     />
   );
