@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { getPublicOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     return Response.redirect(`${origin}/auth?error=google-not-configured`, 302);
   }
 
-  const state = crypto.randomUUID();
+  const state = randomUUID();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${origin}/api/customer/auth/google/callback`,
