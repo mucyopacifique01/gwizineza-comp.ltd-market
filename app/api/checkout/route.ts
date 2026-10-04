@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/prisma';
+import { getCustomerSession } from '@/lib/customer-auth';
 import { apiErrorResponse } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,9 @@ export async function POST(request: Request) {
   const phone = clean(body.phone, 20);
   const deliveryAddress = clean(body.deliveryAddress, 300);
   const customerEmail = clean(body.customerEmail, 160) || null;
+  const customerId = getCustomerSession();
+  const paymentMethod = ['COD', 'MOMO', 'AIRTEL', 'CARD'].includes(body.paymentMethod) ? body.paymentMethod : 'COD';
+  const deliveryZoneId = clean(body.deliveryZoneId, 24) || null;
 
   if (!cartId || !customerName || !phone || !deliveryAddress) {
     return Response.json({ error: 'cartId, customerName, phone and deliveryAddress are required' }, { status: 400 });
@@ -41,7 +45,12 @@ export async function POST(request: Request) {
       const cart = await tx.cart.findUnique({ where: { id: cartId }, include: { items: { include: { product: true } } } });
       if (!cart || !cart.items.length) throw new Error('CART_EMPTY');
       const subtotalRwf = cart.items.reduce((sum, item) => sum + item.quantity * item.product.priceRwf, 0);
-      const deliveryRwf = 0;
+      let deliveryRwf = 0;
+      if (deliveryZoneId) {
+        const zone = await tx.deliveryZone.findFirst({ where: { id: deliveryZoneId, active: true } });
+        if (!zone) throw new Error('DELIVERY_ZONE_INVALID');
+        deliveryRwf = zone.feeRwf;
+      }
       const totalRwf = subtotalRwf + deliveryRwf;
       for (const item of cart.items) {
         const result = await tx.product.updateMany({ where: { id: item.productId, isActive: true, stock: { gte: item.quantity } }, data: { stock: { decrement: item.quantity } } });
@@ -50,7 +59,7 @@ export async function POST(request: Request) {
       const created = await tx.order.create({
         data: {
           orderNumber: makeOrderNumber(),
-          customerName, phone, customerEmail, deliveryAddress,
+          customerName, phone, customerEmail, customerId, deliveryAddress,
           subtotalRwf, deliveryRwf, totalRwf, currency: 'RWF', status: 'ORDERED',
           items: {
             create: cart.items.map(item => ({
@@ -65,6 +74,7 @@ export async function POST(request: Request) {
         },
         include: { items: true },
       });
+      await tx.payment.create({ data: { orderId: created.id, method: paymentMethod, amountRwf: totalRwf, status: 'PENDING' } });
       await tx.cartItem.deleteMany({ where: { cartId } });
       return created;
     });
@@ -72,6 +82,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     if (message === 'CART_EMPTY') return Response.json({ error: 'Your cart is empty' }, { status: 400 });
+    if (message === 'DELIVERY_ZONE_INVALID') return Response.json({ error: 'Selected delivery zone is unavailable' }, { status: 400 });
     if (message.startsWith('OUT_OF_STOCK:')) return Response.json({ error: `Not enough stock for ${message.slice(13)}` }, { status: 409 });
     return apiErrorResponse('checkout', error);
   }
