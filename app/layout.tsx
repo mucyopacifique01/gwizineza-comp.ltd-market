@@ -1,26 +1,23 @@
 import type { Metadata, Viewport } from 'next';
-import { Bricolage_Grotesque, Manrope } from 'next/font/google';
+import { Inter, Outfit } from 'next/font/google';
 import '@/styles/base.css';
 import '@/styles/store.css';
 import '@/styles/dashboard.css';
+import '@/styles/figma.css';
 
-const display = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-bricolage', display: 'swap' });
-const body = Manrope({ subsets: ['latin'], variable: '--font-manrope', display: 'swap' });
+const display = Outfit({ subsets: ['latin'], variable: '--font-bricolage', display: 'swap' });
+const body = Inter({ subsets: ['latin'], variable: '--font-manrope', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: { default: 'Gwizineza Market · Everyday goods from trusted local sellers', template: '%s · Gwizineza Market' },
-  description: 'Gwizineza Market is a modern marketplace from Kabarondo, Rwanda. Browse products from approved local sellers, order online and get a clear order confirmation you can share on WhatsApp.',
+  title: { default: 'Gwizineza Market · B2B Marketplace', template: '%s · Gwizineza Market' },
+  description: 'Gwizineza Market connects trusted sellers and buyers from Kabarondo, Rwanda.',
   applicationName: 'Gwizineza Market',
   authors: [{ name: 'Mucyo Pacifique' }],
   creator: 'Mucyo Pacifique',
 };
 
-export const viewport: Viewport = { themeColor: '#0e1c17', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#0b1017', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body>{children}</body>
-    </html>
-  );
+  return <html lang="en" className={`${display.variable} ${body.variable}`}><body>{children}</body></html>;
 }
