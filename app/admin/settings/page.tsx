@@ -56,7 +56,7 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     apiFetch<{ settings: Settings }>('/api/admin/settings')
       .then(data => setForm(data.settings))
-      .catch(e => setError(e instanceof Error ? e.message : 'Could not load settings'))
+      .catch(e => { if (e instanceof Error && 'status' in e && ((e as { status?: number }).status === 401 || (e as { status?: number }).status === 403)) { window.location.href = '/admin/login'; return; } setError(e instanceof Error ? e.message : 'Could not load settings'); })
       .finally(() => setLoading(false));
   }, []);
 
