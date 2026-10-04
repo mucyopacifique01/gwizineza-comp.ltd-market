@@ -1,0 +1,6 @@
+import { db } from '@/lib/prisma';
+import { requireCustomer } from '@/lib/customer-auth';
+import { apiErrorResponse } from '@/lib/api-errors';
+export const runtime='nodejs'; export const dynamic='force-dynamic';
+export async function GET(){try{const id=requireCustomer();const customer=await db.customer.findUnique({where:{id},select:{id:true,name:true,email:true,phone:true,avatarUrl:true,createdAt:true}});if(!customer)return Response.json({error:'Customer not found'},{status:404});return Response.json({customer});}catch(e){return apiErrorResponse('customer/account',e)}}
+export async function PATCH(req:Request){try{const id=requireCustomer();const body=await req.json();const name=typeof body.name==='string'?body.name.trim().slice(0,120):undefined;const phone=typeof body.phone==='string'?body.phone.trim().slice(0,20):undefined;if(name!==undefined&&!name)return Response.json({error:'Name is required'},{status:400});const customer=await db.customer.update({where:{id},data:{...(name!==undefined?{name}:{}),...(phone!==undefined?{phone:phone||null}:{})},select:{id:true,name:true,email:true,phone:true,avatarUrl:true,createdAt:true}});return Response.json({customer});}catch(e){return apiErrorResponse('customer/account',e)}}
