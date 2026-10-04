@@ -1,0 +1,6 @@
+import { db } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
+import { apiErrorResponse } from '@/lib/api-errors';
+export const runtime='nodejs'; export const dynamic='force-dynamic';
+export async function GET(){try{requireAdmin();const tickets=await db.supportTicket.findMany({orderBy:{updatedAt:'desc'},take:200,include:{customer:{select:{id:true,name:true,email:true,phone:true}}}});return Response.json({tickets});}catch(e){return apiErrorResponse('admin/support',e)}}
+export async function PATCH(req:Request){try{requireAdmin();const b=await req.json();if(!b.id)return Response.json({error:'id is required'},{status:400});const data:any={};if(b.status&&['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].includes(b.status))data.status=b.status;if(b.priority&&['LOW','NORMAL','HIGH','URGENT'].includes(b.priority))data.priority=b.priority;const ticket=await db.supportTicket.update({where:{id:b.id},data});return Response.json({ticket});}catch(e){return apiErrorResponse('admin/support',e)}}
