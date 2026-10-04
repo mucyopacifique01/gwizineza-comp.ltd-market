@@ -48,6 +48,7 @@ async function ensurePublicBucket(base: string, bucket: string, serviceRoleKey: 
   }
 
   console.log(`[storage] Created public bucket "${bucket}" for product images.`);
+}
 
 export async function uploadProductImage(file: File): Promise<StorageResult> {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
