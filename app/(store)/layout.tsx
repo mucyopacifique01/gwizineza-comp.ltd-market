@@ -13,13 +13,13 @@ export default async function StoreLayout({ children }: { children: React.ReactN
   try { categories = await getCategories(); } catch (error) { console.error('[store-layout] categories unavailable', error); }
   const settings = await getSiteSettings();
 
-  return (
-    <StoreProviders>
+  return <StoreProviders>
+    <div className="figma-store-theme">
       <a href="#main" className="skip-link">Skip to content</a>
       <SiteHeader categories={categories} announcement={{ enabled: settings.announcementEnabled, text: settings.announcementText || settings.location }} />
       <main id="main" className="store-main">{children}</main>
       <SiteFooter categories={categories} />
       <MobileTabBar />
-    </StoreProviders>
-  );
+    </div>
+  </StoreProviders>;
 }
