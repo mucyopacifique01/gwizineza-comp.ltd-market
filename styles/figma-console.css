@@ -301,3 +301,52 @@
     padding: 16px;
   }
 }
+
+
+/* Desktop shell fix
+   The console theme intentionally shows the mobile top bar by default in its
+   visual system. On desktop that header must not become a grid item, otherwise
+   CSS grid auto-placement puts the main content on a second row and underneath
+   the sidebar. Keep one stable two-column desktop shell and reserve the top bar
+   for tablet/mobile only. */
+@media (min-width: 1024px) {
+  .figma-console-theme {
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .figma-console-theme .dash-sidebar {
+    grid-column: 1;
+    grid-row: 1;
+    width: auto;
+    min-width: 0;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+  }
+
+  .figma-console-theme .dash-topbar {
+    display: none !important;
+  }
+
+  .figma-console-theme .dash-main {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    min-height: 100vh;
+  }
+}
+
+/* Tablet/mobile shell: a single content column with the navigation drawer
+   available from the top bar. */
+@media (max-width: 1023px) {
+  .figma-console-theme {
+    display: block;
+  }
+
+  .figma-console-theme .dash-main {
+    min-width: 0;
+  }
+}
