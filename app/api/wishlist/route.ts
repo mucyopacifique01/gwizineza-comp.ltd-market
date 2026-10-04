@@ -1,0 +1,8 @@
+import { db } from '@/lib/prisma';
+import { requireCustomer } from '@/lib/customer-auth';
+import { apiErrorResponse } from '@/lib/api-errors';
+import { productSelect,toProductDTO } from '@/lib/catalog';
+export const runtime='nodejs'; export const dynamic='force-dynamic';
+export async function GET(){try{const customerId=requireCustomer();const rows=await db.wishlistItem.findMany({where:{customerId},include:{product:{select:productSelect}},orderBy:{createdAt:'desc'}});return Response.json({items:rows.map(x=>({id:x.id,createdAt:x.createdAt.toISOString(),product:toProductDTO(x.product)}))});}catch(e){return apiErrorResponse('wishlist',e)}}
+export async function POST(req:Request){try{const customerId=requireCustomer();const {productId}=await req.json();if(!productId)return Response.json({error:'productId is required'},{status:400});const product=await db.product.findFirst({where:{id:productId,isActive:true}});if(!product)return Response.json({error:'Product not found'},{status:404});const item=await db.wishlistItem.upsert({where:{customerId_productId:{customerId,productId}},update:{},create:{customerId,productId},include:{product:{select:productSelect}}});return Response.json({item:{id:item.id,product:toProductDTO(item.product)}},{status:201});}catch(e){return apiErrorResponse('wishlist',e)}}
+export async function DELETE(req:Request){try{const customerId=requireCustomer();const {productId}=await req.json();if(!productId)return Response.json({error:'productId is required'},{status:400});await db.wishlistItem.deleteMany({where:{customerId,productId}});return Response.json({ok:true});}catch(e){return apiErrorResponse('wishlist',e)}}
