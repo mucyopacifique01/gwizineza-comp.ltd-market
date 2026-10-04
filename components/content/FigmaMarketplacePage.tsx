@@ -60,7 +60,7 @@ function useJson<T>(url: string | null, loginPath?: string): JsonState<T> & { re
   setState(s => ({...s,loading:true,error:''}));
   void request<T>(url, undefined, loginPath).then(data => { if (alive) setState({data,loading:false,error:''}); }).catch(error => { if (alive) setState({data:null,loading:false,error:error instanceof Error ? error.message : 'Could not load data'}); });
   return () => { alive = false; };
- }, [url,nonce]);
+ }, [url,nonce,loginPath]);
  return {...state,reload:() => setNonce(n => n+1)};
 }
 
@@ -86,7 +86,7 @@ function AccountSection(){
 }
 
 function WishlistSection(){
- const state=useJson<{items:WishlistItem[]}>('/api/wishlist');
+ const state=useJson<{items:WishlistItem[]}>('/api/wishlist','/auth');
  if(state.loading&&!state.data) return <LoadingBlock/>;
  if(state.error) return <ErrorBlock error={state.error+' Sign in to manage saved products.'}/>;
  const items=state.data!.items;
@@ -145,14 +145,14 @@ function AdminFinance(){
 function AdminCms(){
  const posts=useJson<{posts:ContentPost[]}>('/api/content?admin=true','/admin/login');
  const [title,setTitle]=useState(''); const [slug,setSlug]=useState(''); const [body,setBody]=useState(''); const [saving,setSaving]=useState(false); const [message,setMessage]=useState('');
- async function create(){setSaving(true);setMessage('');try{await request('/api/content',{method:'POST',body:JSON.stringify({title,slug,body,status:'PUBLISHED'})});setTitle('');setSlug('');setBody('');setMessage('Published');posts.reload()}catch(e){setMessage(e instanceof Error?e.message:'Could not publish')}finally{setSaving(false)}}
+ async function create(){setSaving(true);setMessage('');try{await request('/api/content',{method:'POST',body:JSON.stringify({title,slug,body,status:'PUBLISHED'})},'/admin/login');setTitle('');setSlug('');setBody('');setMessage('Published');posts.reload()}catch(e){setMessage(e instanceof Error?e.message:'Could not publish')}finally{setSaving(false)}}
  if(posts.loading&&!posts.data)return <LoadingBlock/>; if(posts.error)return <ErrorBlock error={posts.error} retry={posts.reload}/>;
  return <section className="fig-panel-grid"><div className="fig-panel"><h2>Publish article</h2><div className="stack"><input className="input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)}/><input className="input" placeholder="Slug" value={slug} onChange={e=>setSlug(e.target.value)}/><textarea className="textarea" placeholder="Article body" value={body} onChange={e=>setBody(e.target.value)}/><button className="btn btn-primary" disabled={saving||!title||!slug||!body} onClick={()=>void create()}>{saving?'Publishing…':'Publish'}</button>{message&&<p className="alert">{message}</p>}</div></div><div className="fig-panel"><h2>Content library</h2><div className="fig-links">{posts.data!.posts.map(p=><div key={p.id} className="row-between" style={{padding:'14px 0',borderBottom:'1px solid var(--fig-line)'}}><span><strong>{p.title}</strong><small className="muted" style={{display:'block'}}>{p.status} · {p.slug}</small></span><span className="badge">{p.status}</span></div>)}</div></div></section>;
 }
 
 function AdminSupport(){
  const s=useJson<{tickets:Ticket[]}>('/api/admin/support','/admin/login');
- async function change(id:string,status:string){try{await request('/api/admin/support',{method:'PATCH',body:JSON.stringify({id,status})});s.reload()}catch{}}
+ async function change(id:string,status:string){try{await request('/api/admin/support',{method:'PATCH',body:JSON.stringify({id,status})},'/admin/login');s.reload()}catch{}}
  if(s.loading&&!s.data)return <LoadingBlock/>; if(s.error)return <ErrorBlock error={s.error} retry={s.reload}/>;
  return <section className="fig-panel"><h2>{s.data!.tickets.length} support ticket{s.data!.tickets.length===1?'':'s'}</h2>{s.data!.tickets.length?<div className="table-wrap"><table className="table"><thead><tr><th>Subject</th><th>Customer</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead><tbody>{s.data!.tickets.map(t=><tr key={t.id}><td><strong>{t.subject}</strong><div className="muted tiny">{t.message.slice(0,100)}</div></td><td>{t.customer?.name||'Guest'}</td><td>{t.priority}</td><td><select className="select select-sm" value={t.status} onChange={e=>void change(t.id,e.target.value)}><option>OPEN</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>CLOSED</option></select></td><td>{formatDate(t.updatedAt,true)}</td></tr>)}</tbody></table></div>:<div className="fig-empty"><Icon name="users" size={34}/><h3>No support tickets</h3><p>Customer requests will appear here when submitted.</p></div>}</section>;
 }
