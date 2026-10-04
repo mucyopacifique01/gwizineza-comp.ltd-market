@@ -1,0 +1,1 @@
+import { FigmaMarketplacePage } from '@/components/content/FigmaMarketplacePage'; export default function Page(){return <FigmaMarketplacePage kind="analytics"/>}
