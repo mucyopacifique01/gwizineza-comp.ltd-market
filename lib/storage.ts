@@ -23,6 +23,7 @@ async function ensurePublicBucket(base: string, bucket: string, serviceRoleKey: 
       if (!update.ok) {
         const detail = await update.text().catch(() => '');
         console.error('[storage] Could not make bucket public', update.status, detail);
+        throw new Error('Supabase Storage bucket exists but could not be made public. Check the service-role key and bucket permissions.');
       }
     }
     return;
@@ -45,7 +46,8 @@ async function ensurePublicBucket(base: string, bucket: string, serviceRoleKey: 
     if (create.status === 409) return;
     throw new Error(`Storage bucket creation failed (${create.status}): ${detail.slice(0, 300)}`);
   }
-}
+
+  console.log(`[storage] Created public bucket "${bucket}" for product images.`);
 
 export async function uploadProductImage(file: File): Promise<StorageResult> {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
