@@ -43,7 +43,7 @@ export default function SellersAdmin() {
   useEffect(() => { if (qNew) setCreating(true); }, [qNew]);
   useEffect(() => { if (qStatus === 'PENDING' || qStatus === 'APPROVED' || qStatus === 'SUSPENDED') setFilter(qStatus); }, [qStatus]);
 
-  const sellers = data?.sellers ?? [];
+  const sellers = useMemo(() => data?.sellers ?? [], [data]);
   const list = useMemo(() => sellers.filter(s => (filter === 'ALL' || s.status === filter) && `${s.businessName} ${s.ownerName} ${s.phone} ${s.loginUsername ?? ''}`.toLowerCase().includes(q.toLowerCase())), [sellers, filter, q]);
   const count = (s: Seller['status']) => sellers.filter(x => x.status === s).length;
 
