@@ -40,18 +40,29 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { businessName, ownerName, phone, email, address, loginUsername, password } = body;
 
-    if (!businessName || !ownerName || !phone || !loginUsername || !password) {
+    const business = typeof businessName === 'string' ? businessName.trim() : '';
+    const owner = typeof ownerName === 'string' ? ownerName.trim() : '';
+    const sellerPhone = typeof phone === 'string' ? phone.trim() : '';
+    const username = typeof loginUsername === 'string' ? loginUsername.trim() : '';
+    const sellerPassword = typeof password === 'string' ? password : '';
+    const sellerEmail = typeof email === 'string' ? email.trim() : '';
+    const sellerAddress = typeof address === 'string' ? address.trim() : '';
+
+    if (!business || !owner || !sellerPhone || !username || !sellerPassword) {
       return Response.json(
-        { error: 'businessName, ownerName, phone, loginUsername and password are required' },
+        { error: 'Business name, owner name, phone, username and password are required' },
         { status: 400 },
       );
     }
 
-    if (String(password).length < 8) {
+    if (sellerEmail && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(sellerEmail)) {
+      return Response.json({ error: 'Please enter a valid email address or leave email empty' }, { status: 400 });
+    }
+
+    if (sellerPassword.length < 8) {
       return Response.json({ error: 'Seller password must be at least 8 characters' }, { status: 400 });
     }
 
-    const username = String(loginUsername).trim();
     if (username.length < 3) {
       return Response.json({ error: 'Seller username must be at least 3 characters' }, { status: 400 });
     }
@@ -65,21 +76,36 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Seller username is already in use' }, { status: 409 });
     }
 
-    // Verify MongoDB is reachable before creating the seller so the admin gets a useful server-side log.
+    // Verify MongoDB is reachable before creating the seller. This separates
+    // connection failures from data/index failures in the server logs.
     await db.$runCommandRaw({ ping: 1 });
 
-    const seller = await db.seller.create({
-      data: {
-        businessName: String(businessName).trim(),
-        ownerName: String(ownerName).trim(),
-        phone: String(phone).trim(),
-        email: typeof email === 'string' && email.trim() ? email.trim() : null,
-        address: typeof address === 'string' && address.trim() ? address.trim() : null,
-        loginUsername: username,
-        passwordHash: hashSellerPassword(String(password)),
-        status: 'APPROVED',
-      },
-    });
+    let seller;
+    try {
+      seller = await db.seller.create({
+        data: {
+          businessName: business,
+          ownerName: owner,
+          phone: sellerPhone,
+          email: sellerEmail || null,
+          address: sellerAddress || null,
+          loginUsername: username,
+          passwordHash: hashSellerPassword(sellerPassword),
+          status: 'APPROVED',
+        },
+      });
+    } catch (createError) {
+      // Legacy Mongo indexes can surface as duplicate-key errors even though
+      // the current Prisma schema does not mark those fields as unique.
+      const message = createError instanceof Error ? createError.message : String(createError);
+      if (/E11000|duplicate key|unique constraint/i.test(message)) {
+        return Response.json(
+          { error: 'A seller with this username already exists, or MongoDB still has a legacy unique index. Please retry after the database index repair.' },
+          { status: 409 },
+        );
+      }
+      throw createError;
+    }
 
     return Response.json(
       {
