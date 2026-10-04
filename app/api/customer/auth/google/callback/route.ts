@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     const name = profile.name?.trim() || 'Customer';
     const avatarUrl = profile.picture?.trim() || null;
 
-    let customer = await db.customer.findUnique({
+    let customer = await db.customer.findFirst({
       where: { googleId: profile.sub },
       select: { id: true },
     });
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
         data: { name, email, avatarUrl },
       });
     } else {
-      const byEmail = await db.customer.findUnique({ where: { email }, select: { id: true } });
+      const byEmail = await db.customer.findFirst({ where: { email }, select: { id: true } });
       if (byEmail) {
         await db.customer.update({
           where: { id: byEmail.id },

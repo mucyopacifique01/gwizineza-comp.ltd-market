@@ -7,7 +7,7 @@ services:
     branch: main
     buildCommand: npm install --include=optional && npm run build
     # Keep Prisma schema synchronized with MongoDB before starting Next.js.
-    startCommand: npx prisma db push --skip-generate && npm start
+    startCommand: npx prisma db push --skip-generate && node scripts/fix-customer-indexes.js && npm start
     autoDeployTrigger: commit
     healthCheckPath: /api/health
     envVars:
