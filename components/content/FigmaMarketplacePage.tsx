@@ -44,21 +44,21 @@ const features:[IconName,string,string][] = [
  ['whatsapp','Local support','Connect with Gwizineza through familiar communication channels.'],
 ];
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+async function request<T>(url: string, init?: RequestInit, loginPath?: string): Promise<T> {
  const response = await fetch(url, { ...init, credentials:'include', headers:{'Content-Type':'application/json', ...(init?.headers || {})}, cache:'no-store' });
  const body = await response.json().catch(() => ({}));
- if (!response.ok) throw new Error(body?.error || 'Request failed');
+ if (!response.ok) { if ((response.status === 401 || response.status === 403) && loginPath && typeof window !== 'undefined') window.location.assign(loginPath); throw new Error(body?.error || (response.status === 401 ? 'Please sign in to continue.' : 'You do not have permission to access this page.')); }
  return body as T;
 }
 
-function useJson<T>(url: string | null): JsonState<T> & { reload: () => void } {
+function useJson<T>(url: string | null, loginPath?: string): JsonState<T> & { reload: () => void } {
  const [state,setState] = useState<JsonState<T>>({data:null,loading:Boolean(url),error:''});
  const [nonce,setNonce] = useState(0);
  useEffect(() => {
   if (!url) { setState({data:null,loading:false,error:''}); return; }
   let alive = true;
   setState(s => ({...s,loading:true,error:''}));
-  void request<T>(url).then(data => { if (alive) setState({data,loading:false,error:''}); }).catch(error => { if (alive) setState({data:null,loading:false,error:error instanceof Error ? error.message : 'Could not load data'}); });
+  void request<T>(url, undefined, loginPath).then(data => { if (alive) setState({data,loading:false,error:''}); }).catch(error => { if (alive) setState({data:null,loading:false,error:error instanceof Error ? error.message : 'Could not load data'}); });
   return () => { alive = false; };
  }, [url,nonce]);
  return {...state,reload:() => setNonce(n => n+1)};
@@ -73,9 +73,9 @@ function LoadingBlock(){return <div className="fig-empty"><span className="spinn
 function ErrorBlock({error,retry}:{error:string;retry?:()=>void}){return <div className="fig-empty"><Icon name="alert" size={34}/><h3>Could not load this section</h3><p>{error}</p>{retry&&<button className="btn btn-outline" onClick={retry}>Retry</button>}</div>}
 
 function AccountSection(){
- const account=useJson<{customer:Customer}>('/api/customer/account');
- const orders=useJson<{orders:CustomerOrder[]}>('/api/customer/orders');
- const wishlist=useJson<{items:WishlistItem[]}>('/api/wishlist');
+ const account=useJson<{customer:Customer}>('/api/customer/account','/auth');
+ const orders=useJson<{orders:CustomerOrder[]}>('/api/customer/orders','/auth');
+ const wishlist=useJson<{items:WishlistItem[]}>('/api/wishlist','/auth');
  if(account.loading&&!account.data) return <LoadingBlock/>;
  if(account.error) return <ErrorBlock error={account.error+' Sign in to use your customer account.'}/>;
  const c=account.data!.customer;
@@ -126,7 +126,7 @@ function BlogSection(){
 }
 
 function AdminAnalytics(){
- const s=useJson<AdminStats>('/api/admin/stats');
+ const s=useJson<AdminStats>('/api/admin/stats','/admin/login');
  if(s.loading&&!s.data)return <LoadingBlock/>;
  if(s.error)return <ErrorBlock error={s.error} retry={s.reload}/>;
  const t=s.data!.totals;
@@ -135,7 +135,7 @@ function AdminAnalytics(){
 }
 
 function AdminFinance(){
- const s=useJson<Finance>('/api/admin/finance');
+ const s=useJson<Finance>('/api/admin/finance','/admin/login');
  if(s.loading&&!s.data)return <LoadingBlock/>;
  if(s.error)return <ErrorBlock error={s.error} retry={s.reload}/>;
  const x=s.data!.summary;
@@ -143,7 +143,7 @@ function AdminFinance(){
 }
 
 function AdminCms(){
- const posts=useJson<{posts:ContentPost[]}>('/api/content?admin=true');
+ const posts=useJson<{posts:ContentPost[]}>('/api/content?admin=true','/admin/login');
  const [title,setTitle]=useState(''); const [slug,setSlug]=useState(''); const [body,setBody]=useState(''); const [saving,setSaving]=useState(false); const [message,setMessage]=useState('');
  async function create(){setSaving(true);setMessage('');try{await request('/api/content',{method:'POST',body:JSON.stringify({title,slug,body,status:'PUBLISHED'})});setTitle('');setSlug('');setBody('');setMessage('Published');posts.reload()}catch(e){setMessage(e instanceof Error?e.message:'Could not publish')}finally{setSaving(false)}}
  if(posts.loading&&!posts.data)return <LoadingBlock/>; if(posts.error)return <ErrorBlock error={posts.error} retry={posts.reload}/>;
@@ -151,7 +151,7 @@ function AdminCms(){
 }
 
 function AdminSupport(){
- const s=useJson<{tickets:Ticket[]}>('/api/admin/support');
+ const s=useJson<{tickets:Ticket[]}>('/api/admin/support','/admin/login');
  async function change(id:string,status:string){try{await request('/api/admin/support',{method:'PATCH',body:JSON.stringify({id,status})});s.reload()}catch{}}
  if(s.loading&&!s.data)return <LoadingBlock/>; if(s.error)return <ErrorBlock error={s.error} retry={s.reload}/>;
  return <section className="fig-panel"><h2>{s.data!.tickets.length} support ticket{s.data!.tickets.length===1?'':'s'}</h2>{s.data!.tickets.length?<div className="table-wrap"><table className="table"><thead><tr><th>Subject</th><th>Customer</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead><tbody>{s.data!.tickets.map(t=><tr key={t.id}><td><strong>{t.subject}</strong><div className="muted tiny">{t.message.slice(0,100)}</div></td><td>{t.customer?.name||'Guest'}</td><td>{t.priority}</td><td><select className="select select-sm" value={t.status} onChange={e=>void change(t.id,e.target.value)}><option>OPEN</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>CLOSED</option></select></td><td>{formatDate(t.updatedAt,true)}</td></tr>)}</tbody></table></div>:<div className="fig-empty"><Icon name="users" size={34}/><h3>No support tickets</h3><p>Customer requests will appear here when submitted.</p></div>}</section>;
