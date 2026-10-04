@@ -4,7 +4,7 @@ import { Hills } from '@/components/brand/Motifs';
 export function InfoPage({ eyebrow, title, lead, children }: { eyebrow: string; title: string; lead?: string; children: ReactNode }) {
   return (
     <>
-      <section className="info-hero">
+      <section className="info-hero fig-info-page">
         <Hills className="info-hills" />
         <div className="container">
           <span className="eyebrow">{eyebrow}</span>
@@ -12,7 +12,7 @@ export function InfoPage({ eyebrow, title, lead, children }: { eyebrow: string; 
           {lead && <p>{lead}</p>}
         </div>
       </section>
-      <div className="container info-body">{children}</div>
+      <div className="container info-body fig-info-page">{children}</div>
     </>
   );
 }

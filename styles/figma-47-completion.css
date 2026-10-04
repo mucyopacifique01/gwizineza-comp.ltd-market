@@ -1,0 +1,210 @@
+/* Final Figma 47-screen completion layer. The backend and route contracts stay intact; this layer replaces legacy visual treatment and makes the 1440/768/390 layouts responsive. */
+
+.figma-store-theme .info-hero,
+.figma-store-theme .info-body,
+.figma-store-theme .sellers-head,
+.figma-store-theme .seller-grid,
+.figma-store-theme .auth-page {
+  color: var(--fig-text);
+}
+
+.figma-store-theme .info-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 54px 0 46px;
+  background: linear-gradient(120deg, #0b2b35 0%, #0f1923 55%, #0b1017 100%);
+  border-bottom: 1px solid var(--fig-line);
+}
+.figma-store-theme .info-hero .container { position: relative; z-index: 1; }
+.figma-store-theme .info-hero h1 {
+  max-width: 900px;
+  margin-top: 10px;
+  color: var(--fig-text);
+  font: 800 clamp(42px, 5.5vw, 72px)/1.05 var(--font-bricolage), Outfit, sans-serif;
+  letter-spacing: -.035em;
+}
+.figma-store-theme .info-hero p {
+  max-width: 760px;
+  margin-top: 18px;
+  color: var(--fig-muted);
+  font-size: 17px;
+  line-height: 1.65;
+}
+.figma-store-theme .info-body {
+  padding-top: 42px;
+  padding-bottom: 72px;
+}
+.figma-store-theme .info-body .prose h2,
+.figma-store-theme .info-body .card-title { color: var(--fig-text); }
+.figma-store-theme .info-body .prose p,
+.figma-store-theme .info-body .muted { color: var(--fig-muted); }
+.figma-store-theme .info-body .value-card,
+.figma-store-theme .info-body .contact-channel,
+.figma-store-theme .info-body .faq-item,
+.figma-store-theme .info-body .sell-with-us {
+  background: var(--fig-panel);
+  border: 1px solid var(--fig-line);
+  color: var(--fig-text);
+  border-radius: 14px;
+}
+.figma-store-theme .info-body .value-card,
+.figma-store-theme .info-body .contact-channel { padding: 20px; }
+.figma-store-theme .info-body .value-card p,
+.figma-store-theme .info-body .contact-channel small,
+.figma-store-theme .info-body .contact-channel strong { color: var(--fig-text); }
+.figma-store-theme .info-body .value-card p { color: var(--fig-muted); margin-top: 8px; }
+.figma-store-theme .info-body .trust-ico {
+  background: #102f35;
+  color: var(--fig-teal);
+  border-radius: 9px;
+}
+.figma-store-theme .about-grid,
+.figma-store-theme .contact-grid {
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: 22px;
+}
+.figma-store-theme .value-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.figma-store-theme .contact-grid { align-items: start; }
+.figma-store-theme .contact-channel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 76px;
+}
+.figma-store-theme .contact-channel:hover { border-color: var(--fig-teal); transform: translateY(-1px); }
+.figma-store-theme .faq { display: grid; gap: 10px; max-width: 920px; margin: 0 auto; }
+.figma-store-theme .faq-item { overflow: hidden; }
+.figma-store-theme .faq-item summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 20px 22px;
+  font-weight: 800;
+}
+.figma-store-theme .faq-item summary::-webkit-details-marker { display: none; }
+.figma-store-theme .faq-item summary::after { content: '+'; float: right; color: var(--fig-teal); font-size: 20px; }
+.figma-store-theme .faq-item[open] summary::after { content: '−'; }
+.figma-store-theme .faq-item p { padding: 0 22px 20px; color: var(--fig-muted); line-height: 1.65; }
+
+.figma-store-theme .auth-page {
+  min-height: calc(100vh - 170px);
+  display: grid;
+  place-items: center;
+  padding: 58px 0 84px;
+}
+.figma-store-theme .auth-card {
+  width: min(520px, 100%);
+  padding: 28px;
+  background: var(--fig-panel);
+  border: 1px solid var(--fig-line);
+  border-radius: 18px;
+  box-shadow: 0 30px 70px -45px #000;
+}
+.figma-store-theme .auth-head { text-align: center; }
+.figma-store-theme .auth-head h1 {
+  margin-top: 18px;
+  color: var(--fig-text);
+  font-size: 30px;
+}
+.figma-store-theme .auth-head p { margin-top: 8px; color: var(--fig-muted); }
+.figma-store-theme .auth-card .segmented { background: var(--fig-bg); border-color: var(--fig-line); }
+.figma-store-theme .auth-card .segmented button { color: var(--fig-muted); }
+.figma-store-theme .auth-card .segmented button[aria-selected="true"] { background: #102f35; color: var(--fig-teal); }
+.figma-store-theme .auth-card .or { color: var(--fig-muted); }
+.figma-store-theme .auth-card .or::before,
+.figma-store-theme .auth-card .or::after { background: var(--fig-line); }
+.figma-store-theme .auth-foot { border-top: 1px solid var(--fig-line); padding-top: 16px; }
+
+.figma-store-theme .fig-search-page { padding: 36px 0 72px; }
+.figma-store-theme .fig-search-page .search-hero {
+  padding: 28px;
+  border: 1px solid var(--fig-line);
+  border-radius: 18px;
+  background: linear-gradient(120deg, #0b2b35, #0f1923);
+  margin-bottom: 22px;
+}
+.figma-store-theme .fig-search-page .search-hero h1 { color: var(--fig-text); }
+.figma-store-theme .fig-search-page .search-hero p { color: var(--fig-muted); margin-top: 8px; }
+.figma-store-theme .fig-search-page .search-query {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.figma-store-theme .fig-search-page .search-query .input { flex: 1; }
+
+.figma-store-theme .sellers-head {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 22px;
+  align-items: end;
+  padding: 42px 0 26px;
+}
+.figma-store-theme .sellers-head h1 { color: var(--fig-text); }
+.figma-store-theme .seller-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.figma-store-theme .sell-with-us { padding: 18px; }
+
+.figma-store-theme .fig-hero-back,
+.figma-store-theme .fig-hero-left,
+.figma-store-theme .fig-hero-main {
+  animation: figma-float 4.75s ease-in-out infinite;
+}
+.figma-store-theme .fig-hero-back { animation-delay: -.35s; }
+.figma-store-theme .fig-hero-left { animation-delay: -.7s; }
+@keyframes figma-float {
+  0%, 89%, 100% { translate: 0 0; }
+  47% { translate: 0 -8px; }
+}
+
+.figma-store-theme .orders-page,
+.figma-store-theme .order-history,
+.figma-store-theme .wishlist-page,
+.figma-store-theme .compare-page { color: var(--fig-text); }
+
+.figma-store-theme .table-wrap,
+.figma-store-theme .table { border-color: var(--fig-line); }
+.figma-store-theme .table thead th { background: #101f2a; color: var(--fig-muted); }
+.figma-store-theme .table tbody td { color: var(--fig-text); }
+
+@media (min-width: 520px) and (max-width: 899px) {
+  .figma-store-theme .container { width: min(100% - 56px, 712px); }
+  .fig-search-desktop { display: block; flex: 1; max-width: 420px; }
+  .fig-mobile-search { display: none; }
+  .fig-category-nav { display: block; }
+  .fig-category-inner { padding-inline: 28px; }
+  .fig-hide-mobile { display: none !important; }
+  .fig-only-mobile { display: grid; }
+  .fig-navbar { min-height: 72px; gap: 12px; }
+  .fig-brand-copy strong { font-size: 21px; }
+  .fig-top-links { gap: 14px; }
+  .fig-top-links:first-child span:not(:first-child) { display: none; }
+  .fig-top-links:last-child span:nth-child(2),
+  .fig-top-links:last-child a:not(:first-of-type) { display: none; }
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero-visual { min-height: 430px; }
+  .fig-hero-stack { max-width: 520px; }
+  .fig-feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .about-grid, .contact-grid { grid-template-columns: 1fr; }
+  .sellers-head { grid-template-columns: 1fr; }
+  .seller-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 519px) {
+  .figma-store-theme .container { width: calc(100% - 32px); }
+  .figma-store-theme .info-hero { padding: 34px 0 30px; }
+  .figma-store-theme .info-hero h1 { font-size: 36px; }
+  .figma-store-theme .info-hero p { font-size: 15px; }
+  .figma-store-theme .info-body { padding-top: 28px; padding-bottom: 52px; }
+  .figma-store-theme .about-grid,
+  .figma-store-theme .contact-grid,
+  .figma-store-theme .value-grid { grid-template-columns: 1fr; }
+  .figma-store-theme .auth-page { padding: 30px 0 96px; }
+  .figma-store-theme .auth-card { padding: 20px; border-radius: 16px; }
+  .figma-store-theme .auth-head h1 { font-size: 26px; }
+  .figma-store-theme .fig-search-page { padding-top: 24px; }
+  .figma-store-theme .fig-search-page .search-hero { padding: 20px; }
+  .figma-store-theme .fig-search-page .search-query { flex-direction: column; }
+  .figma-store-theme .sellers-head { grid-template-columns: 1fr; padding-top: 28px; }
+  .figma-store-theme .seller-grid { grid-template-columns: 1fr; }
+  .figma-store-theme .faq-item summary { padding: 17px 16px; }
+  .figma-store-theme .faq-item p { padding: 0 16px 17px; }
+}

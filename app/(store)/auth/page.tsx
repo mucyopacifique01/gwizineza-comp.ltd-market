@@ -74,7 +74,7 @@ export default function AuthPage() {
   const contactLabel = contact.includes('@') ? 'Email address' : 'Phone number';
 
   return (
-    <div className="container auth-page">
+    <div className="container auth-page fig-auth-page">
       <div className="auth-card card">
         <div className="auth-head"><LogoMark size={44} /><h1>{customer ? `Hi, ${customer.name.split(' ')[0]}` : mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1><p className="muted">{customer ? 'You are signed in to Gwizineza Market.' : 'Sign up with Google, or with your name, phone/email and a password.'}</p></div>
 

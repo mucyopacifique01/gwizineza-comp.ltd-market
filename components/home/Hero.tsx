@@ -17,9 +17,9 @@ export function Hero({ main, secondary, stats }: { main: ProductDTO | null; seco
       </div>
       <div className="hero-visual" aria-label="Featured marketplace products">
         {main ? <div className="fig-hero-stack">
-          <div className="fig-hero-product fig-hero-back">{secondary[0] && <><img src={primaryImage(secondary[0])} alt={secondary[0].name}/><span>{secondary[0].name}</span></>}</div>
-          <div className="fig-hero-product fig-hero-left">{secondary[1] && <><img src={primaryImage(secondary[1])} alt={secondary[1].name}/><span>{secondary[1].name}</span></>}</div>
-          <div className="fig-hero-product fig-hero-main"><img src={primaryImage(main)} alt={main.name}/><span>{main.name}</span><Price value={main.priceRwf} size="sm"/></div>
+          <div className="fig-hero-product fig-hero-back fig-motion-back-2">{secondary[0] && <><img src={primaryImage(secondary[0])} alt={secondary[0].name}/><span>{secondary[0].name}</span></>}</div>
+          <div className="fig-hero-product fig-hero-left fig-motion-back-1">{secondary[1] && <><img src={primaryImage(secondary[1])} alt={secondary[1].name}/><span>{secondary[1].name}</span></>}</div>
+          <div className="fig-hero-product fig-hero-main fig-motion-main"><img src={primaryImage(main)} alt={main.name}/><span>{main.name}</span><Price value={main.priceRwf} size="sm"/></div>
         </div> : <div className="hero-empty"><Icon name="box" size={40}/><p>Products will appear here as sellers publish them.</p></div>}
       </div>
     </div>
