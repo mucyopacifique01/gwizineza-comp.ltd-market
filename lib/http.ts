@@ -21,6 +21,7 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   }
   const data = (await response.json().catch(() => ({}))) as { error?: string } & T;
   if (!response.ok) {
+    if ((response.status === 401 || response.status === 403) && typeof window !== 'undefined' && url.startsWith('/api/admin/')) window.location.href = '/admin/login';
     const fallback = response.status === 503
       ? 'Our store is temporarily unavailable. Please try again in a moment.'
       : response.status === 401
