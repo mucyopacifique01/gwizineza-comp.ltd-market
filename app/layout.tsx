@@ -5,6 +5,7 @@ import '@/styles/store.css';
 import '@/styles/dashboard.css';
 import '@/styles/figma.css';
 import '@/styles/figma-marketplace.css';
+import '@/styles/figma-console.css';
 
 const display = Outfit({ subsets: ['latin'], variable: '--font-bricolage', display: 'swap' });
 const body = Inter({ subsets: ['latin'], variable: '--font-manrope', display: 'swap' });
