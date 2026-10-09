@@ -102,7 +102,7 @@ export async function getProducts(query: CatalogQuery = {}) {
   if (query.q) and.push({ OR: [{ name: { contains: query.q, mode: 'insensitive' } }, { description: { contains: query.q, mode: 'insensitive' } }] });
   if (query.seller && isObjectId(query.seller)) and.push({ sellerId: query.seller });
   if (query.ids) {
-    const ids = [...new Set(query.ids.filter(isObjectId))].slice(0, 60);
+    const ids = Array.from(new Set(query.ids.filter(isObjectId))).slice(0, 60);
     and.push({ id: { in: ids } });
   }
   if (typeof query.minPrice === 'number' && query.minPrice > 0) and.push({ priceRwf: { gte: query.minPrice } });
