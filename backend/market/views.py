@@ -125,19 +125,21 @@ def customer_dto(profile):
 
 
 def category_dto(category):
+    count = category.products.count()
     return {
         "id": str(category.id), "name": category.name, "slug": category.slug,
-        "productCount": category.products.count(),
+        "productCount": count, "_count": {"products": count},
         "createdAt": iso(category.created_at), "updatedAt": iso(category.updated_at),
     }
 
 
 def seller_dto(seller, private=False):
+    count = seller.products.count()
     data = {
         "id": str(seller.id), "businessName": seller.business_name,
         "ownerName": seller.owner_name, "status": seller.status,
         "address": seller.address, "createdAt": iso(seller.created_at),
-        "updatedAt": iso(seller.updated_at), "productCount": seller.products.count(),
+        "updatedAt": iso(seller.updated_at), "productCount": count, "_count": {"products": count},
     }
     if private:
         data.update({"phone": seller.phone, "email": seller.email, "loginUsername": seller.login_username})
@@ -313,7 +315,7 @@ def send_customer_otp(request, body):
     if count >= 5:
         return j({"error": "Too many OTP requests. Wait an hour and try again."}, 429)
     cache.set(throttle_key, count + 1, 3600)
-    payload = {"create_user": True}
+    payload = {"create_user": bool(body.get("createUser", False))}
     payload[kind] = value
     name = clean(body.get("name"), 160)
     if name:
@@ -628,7 +630,11 @@ def api_dispatch(request, resource=""):
         return send_textbee_hook(request)
 
     if path in {"customer/auth/otp/send", "customer/auth/register", "customer/auth/login"} and method == "POST":
-        # Register and login are OTP request aliases for old links; no password auth exists.
+        # Preserve whether the user chose sign-up or sign-in.
+        if path == "customer/auth/register":
+            body["createUser"] = True
+        elif path == "customer/auth/login":
+            body["createUser"] = False
         return send_customer_otp(request, body)
     if path in {"customer/auth/otp/verify", "customer/auth/verify"} and method == "POST":
         return verify_customer_otp(request, body)
@@ -652,12 +658,16 @@ def api_dispatch(request, resource=""):
                     return j({"error": "Name must be at least 2 characters"}, 400)
                 profile.name = new_name
             if "phone" in body:
-                kind, value = normalize_contact(body.get("phone"))
-                if not kind or kind != "phone":
-                    return j({"error": "Enter a valid phone number"}, 400)
-                if CustomerProfile.objects.filter(phone=value).exclude(id=profile.id).exists():
-                    return j({"error": "Phone number is already linked to another account"}, 409)
-                profile.phone = value
+                raw_phone = clean(body.get("phone"), 30)
+                if not raw_phone:
+                    profile.phone = None
+                else:
+                    kind, value = normalize_contact(raw_phone)
+                    if kind != "phone":
+                        return j({"error": "Enter a valid phone number"}, 400)
+                    if CustomerProfile.objects.filter(phone=value).exclude(id=profile.id).exists():
+                        return j({"error": "Phone number is already linked to another account"}, 409)
+                    profile.phone = value
             if "email" in body:
                 kind, value = normalize_contact(body.get("email"))
                 if not kind or kind != "email":
@@ -984,11 +994,31 @@ def api_dispatch(request, resource=""):
             for key, field in [("businessName", "business_name"), ("ownerName", "owner_name"), ("address", "address")]:
                 if key in body:
                     setattr(seller, field, clean(body[key], 300) or None)
-            if body.get("password"):
-                if len(str(body["password"])) < 8:
+            if "phone" in body:
+                phone_kind, normalized_phone = normalize_contact(body.get("phone"))
+                if phone_kind != "phone":
+                    return j({"error": "Enter a valid seller phone number"}, 400)
+                seller.phone = normalized_phone
+            if "email" in body:
+                raw_email = clean(body.get("email"), 180)
+                if raw_email:
+                    email_kind, normalized_email = normalize_contact(raw_email)
+                    if email_kind != "email":
+                        return j({"error": "Enter a valid seller email address"}, 400)
+                    seller.email = normalized_email
+                else:
+                    seller.email = None
+            if "loginUsername" in body:
+                seller.login_username = clean(body.get("loginUsername"), 80) or None
+            new_password = body.get("newPassword") or body.get("password")
+            if new_password:
+                if not isinstance(new_password, str) or len(new_password) < 8:
                     return j({"error": "Password must be at least 8 characters"}, 400)
-                seller.password_hash = make_password(str(body["password"]))
-            seller.save()
+                seller.password_hash = make_password(new_password)
+            try:
+                seller.save()
+            except IntegrityError:
+                return j({"error": "Seller username or contact already exists"}, 409)
             return j({"seller": seller_dto(seller, private=True)})
 
     if path == "seller/me":
@@ -1057,8 +1087,24 @@ def api_dispatch(request, resource=""):
         seller, error = require_seller(request)
         if error:
             return error
-        qs = StoreOrder.objects.filter(items__seller=seller).distinct().prefetch_related("items__product").select_related("payment")
-        return j({"orders": [order_dto(order, seller_id=seller.id) for order in qs]})
+        qs = list(StoreOrder.objects.filter(items__seller=seller).distinct().prefetch_related("items__product").select_related("payment").order_by("-created_at"))
+        rows = []
+        revenue = 0
+        units_sold = 0
+        for order in qs:
+            own_items = list(order.items.filter(seller=seller).select_related("product"))
+            own_total = sum(item.line_total_rwf for item in own_items)
+            row = order_dto(order, seller_id=seller.id)
+            row["totalRwf"] = own_total
+            row["deliveryArea"] = order.delivery_address
+            rows.append(row)
+            if order.status != StoreOrder.Status.CANCELLED:
+                revenue += own_total
+            if order.status == StoreOrder.Status.DELIVERED:
+                units_sold += sum(item.quantity for item in own_items)
+        return j({"orders": rows, "summary": {
+            "orderCount": len(rows), "revenueRwf": revenue, "unitsSold": units_sold,
+        }})
 
     if path == "seller/stats" and method == "GET":
         seller, error = require_seller(request)
@@ -1099,13 +1145,64 @@ def api_dispatch(request, resource=""):
         blocked = require_admin(request)
         if blocked:
             return blocked
+        today = timezone.localdate()
+        orders_qs = StoreOrder.objects.exclude(status=StoreOrder.Status.CANCELLED)
+        products_count = Product.objects.count()
+        active_count = Product.objects.filter(is_active=True).count()
+        sellers_count = Seller.objects.count()
+        pending_sellers = Seller.objects.filter(status=Seller.Status.PENDING).count()
+        guest_phone_count = StoreOrder.objects.filter(customer__isnull=True).exclude(phone="").values("phone").distinct().count()
+        customer_count = CustomerProfile.objects.count() + guest_phone_count
+        sales_by_day = []
+        for days_ago in range(13, -1, -1):
+            day = today - timedelta(days=days_ago)
+            daily = list(orders_qs.filter(created_at__date=day))
+            sales_by_day.append({
+                "date": day.isoformat(),
+                "totalRwf": sum(order.total_rwf for order in daily),
+                "orders": len(daily),
+            })
+        recent_orders = StoreOrder.objects.order_by("-created_at")[:8]
+        recent_products = Product.objects.select_related("seller").order_by("-created_at")[:8]
+        low_stock = Product.objects.filter(is_active=True, stock__lte=5).select_related("seller").order_by("stock", "-updated_at")[:12]
+        seller_activity = Seller.objects.order_by("-updated_at")[:8]
+        totals = {
+            "salesRwf": sum(order.total_rwf for order in orders_qs),
+            "orders": StoreOrder.objects.count(),
+            "products": products_count,
+            "activeProducts": active_count,
+            "sellers": sellers_count,
+            "pendingSellers": pending_sellers,
+            "customers": customer_count,
+        }
         return j({
-            "products": Product.objects.count(), "activeProducts": Product.objects.filter(is_active=True).count(),
-            "categories": Category.objects.count(), "sellers": Seller.objects.count(),
+            "totals": totals,
+            "salesByDay": sales_by_day,
+            "recentOrders": [{
+                "id": str(order.id), "orderNumber": order.order_number, "customerName": order.customer_name,
+                "totalRwf": order.total_rwf, "status": order.status, "createdAt": iso(order.created_at),
+            } for order in recent_orders],
+            "recentProducts": [{
+                "id": str(p.id), "name": p.name, "slug": p.slug, "priceRwf": p.price_rwf,
+                "stock": p.stock, "imageUrl": p.image_url, "isActive": p.is_active,
+                "createdAt": iso(p.created_at),
+                "seller": {"businessName": p.seller.business_name} if p.seller else None,
+            } for p in recent_products],
+            "lowStock": [{
+                "id": str(p.id), "name": p.name, "stock": p.stock, "imageUrl": p.image_url,
+                "seller": {"businessName": p.seller.business_name} if p.seller else None,
+            } for p in low_stock],
+            "sellerActivity": [{
+                "id": str(seller.id), "businessName": seller.business_name, "status": seller.status,
+                "updatedAt": iso(seller.updated_at), "_count": {"products": seller.products.count()},
+            } for seller in seller_activity],
+            # Keep simple fields for older dashboard widgets.
+            "products": products_count, "activeProducts": active_count,
+            "categories": Category.objects.count(), "sellers": sellers_count,
             "activeSellers": Seller.objects.filter(status=Seller.Status.APPROVED).count(),
-            "customers": CustomerProfile.objects.count(), "orders": StoreOrder.objects.count(),
+            "customers": customer_count, "orders": StoreOrder.objects.count(),
             "pendingOrders": StoreOrder.objects.filter(status=StoreOrder.Status.ORDERED).count(),
-            "revenueRwf": PaymentRecord.objects.filter(status=PaymentRecord.Status.PAID).aggregate(total=Sum("amount_rwf"))["total"] or 0,
+            "revenueRwf": totals["salesRwf"],
         })
 
     if path == "admin/diagnostics/database" and method == "GET":
@@ -1124,10 +1221,67 @@ def api_dispatch(request, resource=""):
         blocked = require_admin(request)
         if blocked:
             return blocked
-        customers = CustomerProfile.objects.annotate(order_count=Count("orders")).order_by("-created_at")
-        return j({"customers": [{
-            **customer_dto(c), "orderCount": c.order_count,
-        } for c in customers]})
+        customers = []
+        by_contact = {}
+
+        def contact_keys(phone=None, email=None):
+            keys = []
+            if phone and str(phone).strip():
+                keys.append("phone:" + str(phone).strip().lower())
+            if email and str(email).strip():
+                keys.append("email:" + str(email).strip().lower())
+            return keys
+
+        for profile in CustomerProfile.objects.order_by("-created_at"):
+            customer_orders = list(StoreOrder.objects.filter(customer=profile).order_by("-created_at"))
+            latest = customer_orders[0] if customer_orders else None
+            row = {
+                "phone": profile.phone or (latest.phone if latest else "—"),
+                "name": profile.name or (latest.customer_name if latest else "Customer"),
+                "email": profile.email or (latest.customer_email if latest else None),
+                "lastAddress": latest.delivery_address if latest else "—",
+                "orders": len(customer_orders),
+                "spentRwf": sum(o.total_rwf for o in customer_orders if o.status != StoreOrder.Status.CANCELLED),
+                "lastOrderAt": iso(latest.created_at if latest else profile.created_at),
+                "registered": True, "account": "OTP",
+                "_lastOrderAt": latest.created_at if latest else None,
+            }
+            customers.append(row)
+            for key in contact_keys(profile.phone, profile.email):
+                by_contact[key] = row
+
+        for order in StoreOrder.objects.filter(customer__isnull=True).order_by("-created_at"):
+            keys = contact_keys(order.phone, order.customer_email)
+            row = next((by_contact[key] for key in keys if key in by_contact), None)
+            if row is None:
+                row = next((item for item in customers if item.get("_guestKey") and item["_guestKey"] in keys), None)
+            if row is None:
+                guest_key = keys[0] if keys else "order:" + str(order.id)
+                row = {
+                    "phone": order.phone or "—", "name": order.customer_name,
+                    "email": order.customer_email, "lastAddress": order.delivery_address,
+                    "orders": 0, "spentRwf": 0, "lastOrderAt": iso(order.created_at),
+                    "registered": False, "account": None,
+                    "_lastOrderAt": order.created_at, "_guestKey": guest_key,
+                }
+                customers.append(row)
+                for key in keys:
+                    by_contact.setdefault(key, row)
+            row["orders"] += 1
+            if order.status != StoreOrder.Status.CANCELLED:
+                row["spentRwf"] += order.total_rwf
+            latest = row.get("_lastOrderAt")
+            if latest is None or order.created_at > latest:
+                row["_lastOrderAt"] = order.created_at
+                row["lastOrderAt"] = iso(order.created_at)
+                row["lastAddress"] = order.delivery_address
+                row["name"] = row.get("name") or order.customer_name
+                row["phone"] = row.get("phone") if row.get("phone") and row.get("phone") != "—" else (order.phone or "—")
+                row["email"] = row.get("email") or order.customer_email
+        for row in customers:
+            row.pop("_lastOrderAt", None)
+            row.pop("_guestKey", None)
+        return j({"customers": customers})
 
     if path == "admin/finance" and method == "GET":
         blocked = require_admin(request)
@@ -1135,14 +1289,15 @@ def api_dispatch(request, resource=""):
             return blocked
         def sum_status(status):
             return PaymentRecord.objects.filter(status=status).aggregate(total=Sum("amount_rwf"))["total"] or 0
-        return j({
+        summary = {
             "paidRwf": sum_status(PaymentRecord.Status.PAID),
             "pendingRwf": sum_status(PaymentRecord.Status.PENDING),
             "refundedRwf": sum_status(PaymentRecord.Status.REFUNDED),
             "cancelledRwf": sum_status(PaymentRecord.Status.CANCELLED),
-            "paymentCount": PaymentRecord.objects.count(),
-            "providerIntegration": "not_configured",
-        })
+            "orders": StoreOrder.objects.count(),
+        }
+        return j({**summary, "summary": summary, "paymentCount": PaymentRecord.objects.count(),
+                  "providerIntegration": "not_configured"})
 
     if path == "admin/settings":
         blocked = require_admin(request)
@@ -1275,8 +1430,10 @@ def api_dispatch(request, resource=""):
             ratings = qs.aggregate(count=Count("id"), average=Avg("rating"))
             return j({"reviews": [{
                 "id": str(r.id), "productId": str(r.product_id), "customerId": str(r.customer_id) if r.customer_id else None,
-                "customerName": r.customer.name if r.customer else "Customer", "rating": r.rating,
-                "title": r.title, "body": r.body, "verified": r.verified, "createdAt": iso(r.created_at),
+                "customerName": r.customer.name if r.customer else "Customer",
+                "customer": {"name": r.customer.name, "avatarUrl": r.customer.avatar_url} if r.customer else None,
+                "rating": r.rating, "title": r.title, "body": r.body,
+                "verified": r.verified, "createdAt": iso(r.created_at),
             } for r in rows], "summary": {"count": ratings["count"] or 0, "average": float(ratings["average"] or 0)}})
         if method == "POST":
             profile, error = require_customer(request)
@@ -1346,7 +1503,9 @@ def api_dispatch(request, resource=""):
             return j({"tickets": [{
                 "id": str(t.id), "subject": t.subject, "message": t.message, "status": t.status,
                 "priority": t.priority, "email": t.email, "phone": t.phone,
-                "customerName": t.customer.name if t.customer else None, "createdAt": iso(t.created_at),
+                "customer": {"name": t.customer.name, "email": t.customer.email, "phone": t.customer.phone} if t.customer else None,
+                "customerName": t.customer.name if t.customer else None,
+                "createdAt": iso(t.created_at), "updatedAt": iso(t.updated_at),
             } for t in qs[:500]]})
         if method == "PATCH":
             ticket = SupportTicket.objects.filter(id=body.get("id")).first()
@@ -1370,7 +1529,7 @@ def api_dispatch(request, resource=""):
             return j({"posts": [{
                 "id": str(p.id), "slug": p.slug, "title": p.title, "excerpt": p.excerpt,
                 "body": p.body, "coverImage": p.cover_image, "status": p.status,
-                "publishedAt": iso(p.published_at), "createdAt": iso(p.created_at),
+                "publishedAt": iso(p.published_at), "createdAt": iso(p.created_at), "updatedAt": iso(p.updated_at),
             } for p in qs.order_by("-created_at")[:200]]})
         if method in {"POST", "PATCH"}:
             blocked = require_admin(request)

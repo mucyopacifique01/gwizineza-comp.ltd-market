@@ -76,10 +76,10 @@ export default function AdminSettingsPage() {
     try {
       await apiFetch<{ ok: boolean }>('/api/admin/diagnostics/database');
       setDbHealth('ok');
-      toast.show('MongoDB is reachable');
+      toast.show('Supabase PostgreSQL is reachable');
     } catch (e) {
       setDbHealth('error');
-      toast.show(e instanceof Error ? e.message : 'MongoDB check failed', { tone: 'error' });
+      toast.show(e instanceof Error ? e.message : 'Supabase PostgreSQL check failed', { tone: 'error' });
     }
   }
 
@@ -164,11 +164,11 @@ export default function AdminSettingsPage() {
 
       <section className="card" style={{ marginTop: 20 }}>
         <div className="row-between">
-          <div><h2 className="card-title">System health</h2><p className="muted small">Verify that the deployed application can reach MongoDB.</p></div>
+          <div><h2 className="card-title">System health</h2><p className="muted small">Verify that the deployed application can reach Supabase PostgreSQL.</p></div>
           <Button variant="outline" loading={dbHealth === 'checking'} onClick={() => void checkDatabase()} icon="refresh">Check database</Button>
         </div>
-        {dbHealth === 'ok' && <p className="alert alert-success" style={{ marginTop: 14 }}><Icon name="check" size={16} /> MongoDB is reachable.</p>}
-        {dbHealth === 'error' && <p className="alert alert-error" style={{ marginTop: 14 }}><Icon name="alert" size={16} /> MongoDB check failed. Open Render logs for the server-side error.</p>}
+        {dbHealth === 'ok' && <p className="alert alert-success" style={{ marginTop: 14 }}><Icon name="check" size={16} /> Supabase PostgreSQL is reachable.</p>}
+        {dbHealth === 'error' && <p className="alert alert-error" style={{ marginTop: 14 }}><Icon name="alert" size={16} /> Supabase PostgreSQL check failed. Open Render logs for the server-side error.</p>}
       </section>
 
       {error && <p className="alert alert-error" role="alert" style={{ marginTop: 16 }}><Icon name="alert" size={16} /> {error}</p>}

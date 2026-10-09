@@ -20,7 +20,7 @@ const emptyForm = { businessName: '', ownerName: '', phone: '', email: '', addre
 
 export default function SellersAdmin() {
   const toast = useToast();
-  const { data, error, loading, reload, setData } = useApi<{ sellers: Seller[] }>('/api/sellers', { loginPath: '/admin/login' });
+  const { data, error, loading, reload, setData } = useApi<{ sellers: Seller[] }>('/api/sellers?admin=true', { loginPath: '/admin/login' });
   const qNew = useQueryParam('new');
   const qStatus = useQueryParam('status');
   const [creating, setCreating] = useState(false);

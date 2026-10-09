@@ -48,7 +48,7 @@ export default function AuthPage() {
       const response = await fetch('/api/customer/auth/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: contact.trim(), name: name.trim() || undefined }),
+        body: JSON.stringify({ contact: contact.trim(), name: name.trim() || undefined, createUser: mode === 'signup' }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'We could not send your verification code.');
