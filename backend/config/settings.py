@@ -62,12 +62,32 @@ try:
     }
 except ValueError:
     from django.core.exceptions import ImproperlyConfigured
+
+    # Safe diagnostics only: never print the URL, password or host.
+    def _safe_diag(value: str) -> str:
+        whitespace = any(c.isspace() for c in value)
+        quote_marks = ('"', "'")
+        return (
+            "length=%d, starts_with_scheme=%s, has_whitespace=%s, "
+            "at_sign_count=%d, colon_count=%d, placeholder_left=%s, has_quotes=%s"
+            % (
+                len(value),
+                value.startswith(("postgres://", "postgresql://")),
+                whitespace,
+                value.count("@"),
+                value.count(":"),
+                "YOUR-PASSWORD" in value,
+                value[:1] in quote_marks or value[-1:] in quote_marks,
+            )
+        )
+
     raise ImproperlyConfigured(
         "DATABASE_URL is malformed and could not be parsed. "
         "Re-copy the connection string from Supabase -> Connect -> Session pooler, "
         "replace [YOUR-PASSWORD], and keep it on one single line. If the database "
-        "password contains characters like @ : / # ?, URL-encode them or reset the "
-        "password to long alphanumerics. No part of the URL was logged on purpose."
+        "password contains characters like @ : / # ?, reset it to long "
+        "alphanumerics. Diagnostics (secret not logged): "
+        + _safe_diag(DATABASE_URL)
     )
 
 LANGUAGE_CODE = "en-us"
