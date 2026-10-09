@@ -8,13 +8,13 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { Price } from '@/components/product/Price';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { formatDate, formatRwf } from '@/lib/format';
+import { useWishlist } from '@/components/providers/WishlistProvider';
 
 type Kind = 'account'|'wishlist'|'deals'|'trade'|'compare'|'reviews'|'shipping'|'blog'|'analytics'|'finance'|'cms'|'support';
 type JsonState<T> = { data: T | null; loading: boolean; error: string };
 
 type Customer = { id: string; name: string; email: string | null; phone: string | null; avatarUrl: string | null; createdAt: string };
 type CustomerOrder = { id: string; orderNumber: string; totalRwf: number; status: string; createdAt: string; items: { productName: string; quantity: number; lineTotalRwf: number }[]; payment?: { status: string; method: string } | null };
-type WishlistItem = { id: string; product: ProductDTO };
 type Review = { id: string; productId: string; rating: number; title: string | null; body: string | null; verified: boolean; createdAt: string; customer?: { name: string; avatarUrl: string | null } | null };
 type DeliveryZone = { id: string; name: string; feeRwf: number; etaMinDays: number; etaMaxDays: number; active: boolean };
 type ContentPost = { id: string; slug: string; title: string; excerpt: string | null; body: string; status: 'DRAFT'|'PUBLISHED'; publishedAt: string | null; createdAt: string; updatedAt: string };
@@ -75,22 +75,92 @@ function ErrorBlock({error,retry}:{error:string;retry?:()=>void}){return <div cl
 function AccountSection(){
  const account=useJson<{customer:Customer}>('/api/customer/account','/auth');
  const orders=useJson<{orders:CustomerOrder[]}>('/api/customer/orders','/auth');
- const wishlist=useJson<{items:WishlistItem[]}>('/api/wishlist','/auth');
+ const wishlist=useJson<{items:{id:string}[]}>('/api/wishlist','/auth');
+ const [editing,setEditing]=useState(false);
+ const [saving,setSaving]=useState(false);
+ const [name,setName]=useState('');
+ const [phone,setPhone]=useState('');
+ const [notice,setNotice]=useState('');
+ const [profileError,setProfileError]=useState('');
+
+ useEffect(()=>{
+  const customer=account.data?.customer;
+  if(customer){setName(customer.name);setPhone(customer.phone||'');}
+ },[account.data]);
+
+ async function saveProfile(){
+  const cleanName=name.trim();
+  if(cleanName.length<2){setProfileError('Enter your name using at least two characters.');return;}
+  setSaving(true);setProfileError('');setNotice('');
+  try{
+   await request<{customer:Customer}>('/api/customer/account',{method:'PATCH',body:JSON.stringify({name:cleanName,phone:phone.trim()})},'/auth');
+   setEditing(false);setNotice('Profile updated successfully.');account.reload();
+  }catch(error){setProfileError(error instanceof Error?error.message:'Could not save your profile.');}
+  finally{setSaving(false);}
+ }
+
  if(account.loading&&!account.data) return <LoadingBlock/>;
  if(account.error) return <ErrorBlock error={account.error+' Sign in to use your customer account.'}/>;
  const c=account.data!.customer;
  return <section className="fig-panel-grid">
-  <div className="fig-panel"><h2>Profile</h2><div className="spec"><div><dt>Name</dt><dd>{c.name}</dd></div><div><dt>Email</dt><dd>{c.email||'Not set'}</dd></div><div><dt>Phone</dt><dd>{c.phone||'Not set'}</dd></div><div><dt>Member since</dt><dd>{formatDate(c.createdAt)}</dd></div></div><Link href="/auth" className="btn btn-outline" style={{marginTop:16}}>Profile & security</Link></div>
+  <div className="fig-panel">
+   <div className="row-between" style={{marginBottom:18}}>
+    <h2 style={{marginBottom:0}}>Profile</h2>
+    {!editing&&<button type="button" className="btn btn-outline btn-sm" onClick={()=>{setEditing(true);setNotice('');setProfileError('');}}>Edit profile</button>}
+   </div>
+   {editing?(
+    <div className="stack">
+     <label className="stack"><span className="muted small">Full name</span><input className="input" autoComplete="name" value={name} onChange={e=>setName(e.target.value)} maxLength={120}/></label>
+     <label className="stack"><span className="muted small">Phone number</span><input className="input" type="tel" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} maxLength={20} placeholder="Optional · 078 123 4567"/></label>
+     <p className="muted small">Email: {c.email||'Not set'} (managed by your sign-in method)</p>
+     <div className="row wrap">
+      <button type="button" className="btn btn-primary" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Saving…':'Save changes'}</button>
+      <button type="button" className="btn btn-outline" disabled={saving} onClick={()=>{setEditing(false);setName(c.name);setPhone(c.phone||'');setProfileError('');}}>Cancel</button>
+     </div>
+    </div>
+   ):(
+    <div className="spec"><div><dt>Name</dt><dd>{c.name}</dd></div><div><dt>Email</dt><dd>{c.email||'Not set'}</dd></div><div><dt>Phone</dt><dd>{c.phone||'Not set'}</dd></div><div><dt>Member since</dt><dd>{formatDate(c.createdAt)}</dd></div></div>
+   )}
+   {profileError&&<p className="alert alert-error" role="alert" style={{marginTop:14}}>{profileError}</p>}
+   {notice&&<p className="alert alert-success" role="status" style={{marginTop:14}}>{notice}</p>}
+  </div>
   <div className="fig-panel"><h2>Buying activity</h2><div className="fig-metric-grid"><div><small>Orders</small><strong>{orders.data?.orders.length??'—'}</strong></div><div><small>Saved items</small><strong>{wishlist.data?.items.length??'—'}</strong></div><div><small>Delivered</small><strong>{orders.data?.orders.filter(o=>o.status==='DELIVERED').length??'—'}</strong></div></div><div className="fig-links"><Link href="/orders">Order history <Icon name="arrowRight" size={16}/></Link><Link href="/wishlist">Wishlist <Icon name="arrowRight" size={16}/></Link></div></div>
  </section>;
 }
 
 function WishlistSection(){
- const state=useJson<{items:WishlistItem[]}>('/api/wishlist','/auth');
- if(state.loading&&!state.data) return <LoadingBlock/>;
- if(state.error) return <ErrorBlock error={state.error+' Sign in to manage saved products.'}/>;
- const items=state.data!.items;
- return <section><div className="section-head"><div><span className="eyebrow">Saved for later</span><h2>{items.length} saved product{items.length===1?'':'s'}</h2></div><Link href="/shop" className="link-arrow">Browse products <Icon name="arrowRight" size={16}/></Link></div>{items.length?<div className="product-grid">{items.map(item=><ProductCard key={item.id} product={item.product}/>)}</div>:<div className="fig-empty"><Icon name="heart" size={34}/><h3>Your wishlist is empty</h3><p>Save products from any product card and they will appear here.</p><Link href="/shop" className="btn btn-primary">Find products</Link></div>}</section>;
+ const wishlist=useWishlist();
+ const idKey=wishlist.ids.join(',');
+ const [items,setItems]=useState<ProductDTO[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [error,setError]=useState('');
+ const [retryKey,setRetryKey]=useState(0);
+
+ useEffect(()=>{
+  let alive=true;
+  if(!wishlist.ready){setLoading(true);return()=>{alive=false;};}
+  const ids=idKey?idKey.split(',').filter(Boolean):[];
+  if(!ids.length){setItems([]);setError('');setLoading(false);return()=>{alive=false;};}
+  setLoading(true);setError('');
+  void fetch('/api/products?ids='+encodeURIComponent(ids.join(','))+'&pageSize='+ids.length,{cache:'no-store'})
+   .then(async response=>{
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(body?.error||'Could not load saved products.');
+    return body as {products:ProductDTO[]};
+   })
+   .then(body=>{
+    if(!alive)return;
+    const byId=new Map(body.products.map(product=>[product.id,product]));
+    setItems(ids.map(id=>byId.get(id)).filter((product):product is ProductDTO=>Boolean(product)));
+   })
+   .catch(error=>{if(alive)setError(error instanceof Error?error.message:'Could not load saved products.');})
+   .finally(()=>{if(alive)setLoading(false);});
+  return()=>{alive=false;};
+ },[idKey,wishlist.ready,retryKey]);
+
+ if(loading) return <LoadingBlock/>;
+ if(error) return <ErrorBlock error={error} retry={()=>setRetryKey(n=>n+1)}/>;
+ return <section><div className="section-head"><div><span className="eyebrow">Saved for later</span><h2>{items.length} saved product{items.length===1?'':'s'}</h2></div><Link href="/shop" className="link-arrow">Browse products <Icon name="arrowRight" size={16}/></Link></div>{items.length?<div className="product-grid">{items.map(product=><ProductCard key={product.id} product={product}/>)}</div>:<div className="fig-empty"><Icon name="heart" size={34}/><h3>Your wishlist is empty</h3><p>Save products from any product card and they will appear here. Guests keep saved products on this device; signed-in customers sync them to their account.</p><Link href="/shop" className="btn btn-primary">Find products</Link></div>}</section>;
 }
 
 function DealsSection({products}:{products:ProductDTO[]}){
