@@ -1,134 +1,55 @@
 # Gwizineza Market
 
-**Owner & Creator:** Mucyo Pacifique
+Owner and creator: Mucyo Pacifique. Location: Kabarondo, Rwanda.
 
-Rwanda-focused e-commerce platform for selling goods online. Customers browse products, add items to a cart, provide delivery details, place orders, and track orders.
-
-## Frontend upgrade (2026)
-
-The storefront, owner console and seller console were redesigned. See **docs/FRONTEND-UPGRADE.md** for architecture, API changes, security fixes and known gaps.
+Gwizineza Market is a responsive multi-seller marketplace. The existing Next.js / React / TypeScript frontend remains the customer-facing web application. All application API and business logic is served by Django. Supabase PostgreSQL is the only application database; Supabase Auth handles customer OTP verification and Supabase Storage stores product images.
 
 ## Stack
 
-- Next.js 14 + React + TypeScript
-- Prisma ORM
-- MongoDB Atlas
-- Supabase Auth for customer sign-in/sign-up
-- Supabase Storage for product images
-- Netlify for the web deployment
-- Render configuration included for a separate Node service deployment when needed
-- GitHub continuous deployment
+- Frontend: Next.js 14, React 18 and TypeScript.
+- Backend: Django 5.2 and Django ORM.
+- Database: Supabase-hosted PostgreSQL only.
+- Authentication: email OTP and phone SMS OTP through Supabase Auth; Django issues a same-site HttpOnly customer session cookie after verification.
+- Product images: Supabase Storage.
+- Deployment: separate frontend and Django web services described by render.yaml.
 
-## Implemented features
+Prisma and MongoDB have been removed from the application dependencies and runtime configuration. Google sign-in and customer passwords have been removed in favor of email/phone one-time codes. Owner and seller consoles remain separately protected; sellers are created by the owner.
 
-- Product catalog, categories, prices and stock
-- Search and category filtering at `/shop`
-- Persistent browser cart
-- Customer checkout without payment/tax collection
-- Order creation and customer order tracking at `/orders/<ORDER_NUMBER>`
-- Customer authentication at `/auth`
-- Google sign-in/sign-up
-- Email sign-in/sign-up with password
-- Mobile-phone sign-in/sign-up using SMS OTP verification
-- Admin login and signed admin session
-- Protected seller, product, gallery and order APIs
-- Admin product create/edit/archive and stock management at `/admin/products`
-- Admin product image upload directly to Supabase Storage
-- Seller management and approval/suspension at `/admin`
-- Product gallery management at `/admin`
-- Admin order status management at `/admin/orders`
-- Responsive storefront foundation
-- Kabarondo, Rwanda location section
-- Multi-seller foundation
+## Run locally
 
-Payment, TIN, EBM and WhatsApp receipt features are intentionally excluded from this version, as requested. They can be added later.
+1. Install Node.js 20+ and Python 3.12.
+2. Create a Supabase project. Copy its PostgreSQL connection URI, project URL, anon key and service-role key from the Supabase dashboard.
+3. Create the frontend environment file from .env.example at the repository root. Set DJANGO_API_URL to http://127.0.0.1:8000 and the public Supabase values.
+4. Configure the backend environment variables in your shell or backend/.env, especially DATABASE_URL, DJANGO_SECRET_KEY, ADMIN_PASSWORD, SUPABASE_URL and SUPABASE_ANON_KEY.
+5. From backend/, run: pip install -r requirements.txt
+6. Run: python manage.py migrate --run-syncdb --noinput
+7. Run: python manage.py seed_marketplace
+8. Start Django with: python manage.py runserver 8000
+9. In a second terminal at the repository root, run: npm install and then npm run dev.
+10. Open http://localhost:3000.
 
-## Supabase Auth
+DATABASE_URL belongs to the Django service and must point to Supabase PostgreSQL, not MongoDB. Do not commit production secrets.
 
-The customer authentication page is `/auth`. It supports:
+## OTP configuration
 
-1. **Google** — OAuth sign-in/sign-up through Supabase.
-2. **Email** — email + password sign-in and account creation.
-3. **Mobile phone** — the customer enters an international phone number, receives an SMS OTP, and enters the OTP to verify the phone and sign in. Supabase can create the account during this flow.
+- In Supabase Authentication, enable Email and Phone providers.
+- Set the email template to include the numeric token using Supabase's token template variable ({{ .Token }}); configure a reliable SMTP provider before production.
+- In Supabase Auth Hooks, configure the Send SMS hook to the Django URL /api/auth/send-sms-hook if using TextBee. Set SUPABASE_SEND_SMS_HOOK_SECRET, TEXTBEE_API_KEY and optionally TEXTBEE_DEVICE_ID on the Django service. Verify the hook secret format in the Supabase dashboard.
+- Add the deployed frontend origin to the Supabase Auth allowed URL/site configuration when required.
+- Test OTP delivery and verification with a real phone and email before launch. Provider credentials and successful delivery cannot be tested by CI.
 
-In the Supabase dashboard, enable Google under Authentication providers and configure the Google OAuth credentials. Also enable Phone/SMS authentication and configure an SMS provider supported by your Supabase project. Add your production and local callback/redirect URLs for the `/auth` page.
+## Seed catalog
 
-Set these variables in local development and Netlify/Render:
+Run python manage.py seed_marketplace from the backend directory to insert the sample grocery, soap and everyday products. This seeds the new Supabase database; it does not import records from the old MongoDB database.
 
-```env
-NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
-```
+## Deployment
 
-The public anon key is intended for browser use. Never expose the Supabase service-role key in frontend code.
+Render is configured for two services in render.yaml: the Next.js frontend and Django API. Set the Django service's DATABASE_URL to the Supabase PostgreSQL connection string, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, ADMIN_PASSWORD, TextBee settings and the SMS hook secret. Set the frontend public Supabase URL/key. Render links DJANGO_API_URL to the Django service URL.
 
-## MongoDB Atlas
+The database schema currently uses Django's syncdb path for the market app at deployment. Before a production launch with existing customer/order data, create and review versioned Django migrations and plan any legacy-data import separately.
 
-Set `DATABASE_URL` to a MongoDB Atlas connection string. Prisma MongoDB uses `prisma db push` for schema synchronization.
+## Limitations to keep explicit
 
-## Supabase Storage
-
-Create a Supabase project and create a Storage bucket named `product-images`. The admin upload endpoint uses the server-side Supabase service-role key, so that key must never be exposed in browser code or committed to GitHub.
-
-Set these server variables:
-
-```env
-SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="your-server-only-supabase-service-role-key"
-SUPABASE_STORAGE_BUCKET="product-images"
-```
-
-The product-image URLs are public Storage URLs, so the `product-images` bucket should be configured for public reads if the storefront needs to display them directly.
-
-## Local run
-
-```bash
-npm install
-# create .env from .env.example and set MongoDB, admin, and Supabase variables
-npm run db:push
-npm run db:seed
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-## Netlify deployment
-
-1. Connect this GitHub repository in Netlify.
-2. Use the `main` branch for production.
-3. Add `DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` as Netlify environment variables.
-4. Configure the same `/auth` redirect URL in Supabase for the Netlify site URL.
-5. Use `npm run build` as the build command if Netlify does not auto-detect it.
-6. Deploy.
-
-## Render
-
-`render.yaml` contains a Node web-service configuration. Add the same production environment variables in Render if you deploy the Node service there.
-
-## Image storage
-
-Product images are stored in Supabase Storage. The admin product form can upload an image directly to Supabase Storage and save the returned public URL on the product. Pasting an existing HTTP(S) image URL is also supported.
-
-## Production checklist
-
-Before launch:
-
-- Create the MongoDB Atlas production cluster.
-- Create the Supabase `product-images` Storage bucket.
-- Enable Supabase Google Auth and configure Google OAuth.
-- Enable Supabase Phone Auth and configure an SMS provider for OTP delivery.
-- Configure Supabase redirect URLs for local and production `/auth` pages.
-- Add MongoDB, admin, Supabase Auth and Supabase Storage variables to Netlify/Render.
-- Set a strong `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`.
-- Run the seed once against the intended database if the initial catalog is required.
-- Test Google sign-in, email sign-up/sign-in, phone OTP, product creation, image upload, stock changes, cart, checkout and order tracking.
-- Connect a custom domain to Netlify when ready.
-
-## Prisma commands
-
-```bash
-npm run db:generate
-npm run db:push
-npm run db:seed
-npx prisma studio
-```
+- OTP sending relies on Supabase Auth; phone delivery requires the SMS Send Hook and a working TextBee account, and email delivery requires a configured SMTP provider.
+- Online MTN Mobile Money, Airtel Money, card processing, automatic EBM invoicing and automatic WhatsApp receipts are not activated merely by this migration. Payment records are bookkeeping until a provider integration and verified webhook are configured.
+- Existing MongoDB records are not automatically copied into Supabase PostgreSQL. The included command seeds demo products; production data import must be planned separately.

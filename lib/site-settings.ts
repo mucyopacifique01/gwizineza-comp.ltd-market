@@ -1,4 +1,4 @@
-import { db } from '@/lib/prisma';
+const API_BASE = (process.env.DJANGO_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
 const DEFAULT_SITE_SETTINGS_BASE = {
   key: 'site',
@@ -18,27 +18,9 @@ const DEFAULT_SITE_SETTINGS_BASE = {
   mapLng: 30.5585,
 };
 
-export const DEFAULT_SITE_SETTINGS = {
-  ...DEFAULT_SITE_SETTINGS_BASE,
-} satisfies {
-  key: string;
-  siteName: string;
-  tagline: string;
-  location: string;
-  region: string;
-  phone: string;
-  email: string;
-  whatsapp: string;
-  copyrightText: string;
-  copyrightYear: number;
-  footerCredit: string;
-  announcementText: string;
-  announcementEnabled: boolean;
-  mapLat: number;
-  mapLng: number;
-};
+export const DEFAULT_SITE_SETTINGS = DEFAULT_SITE_SETTINGS_BASE;
 
-export type SiteSettingsDTO = Omit<typeof DEFAULT_SITE_SETTINGS, 'id' | 'createdAt' | 'updatedAt'> & {
+export type SiteSettingsDTO = typeof DEFAULT_SITE_SETTINGS_BASE & {
   id?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -46,23 +28,12 @@ export type SiteSettingsDTO = Omit<typeof DEFAULT_SITE_SETTINGS, 'id' | 'created
 
 export async function getSiteSettings(): Promise<SiteSettingsDTO> {
   try {
-    const row = await db.siteSettings.findUnique({ where: { key: 'site' } });
-    if (!row) return DEFAULT_SITE_SETTINGS;
-    return {
-      ...DEFAULT_SITE_SETTINGS,
-      ...row,
-      phone: row.phone ?? '',
-      email: row.email ?? '',
-      whatsapp: row.whatsapp ?? '',
-      announcementText: row.announcementText ?? '',
-      mapLat: row.mapLat ?? DEFAULT_SITE_SETTINGS.mapLat,
-      mapLng: row.mapLng ?? DEFAULT_SITE_SETTINGS.mapLng,
-      copyrightYear: row.copyrightYear || DEFAULT_SITE_SETTINGS.copyrightYear,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    };
+    const response = await fetch(API_BASE + '/api/site/settings', { cache: 'no-store' });
+    if (!response.ok) return DEFAULT_SITE_SETTINGS;
+    const result = await response.json() as { settings?: Partial<SiteSettingsDTO> };
+    return { ...DEFAULT_SITE_SETTINGS, ...(result.settings || {}) };
   } catch (error) {
-    console.error('[site-settings] read failed', error);
+    console.error('[site-settings] Django API unavailable', error);
     return DEFAULT_SITE_SETTINGS;
   }
 }

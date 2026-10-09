@@ -1,35 +1,66 @@
-name: Build and type-check
+name: Frontend and Django checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, migration/django-supabase-postgres-otp]
   pull_request:
     branches: [main]
 
 jobs:
-  build:
+  backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: gwizineza
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d gwizineza"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gwizineza
+      DJANGO_SECRET_KEY: ci-only-secret-key-not-for-production
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      ADMIN_PASSWORD: ci-only-admin-password
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Django dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Django system checks
+        working-directory: backend
+        run: python manage.py check
+      - name: Create database tables
+        working-directory: backend
+        run: python manage.py migrate --run-syncdb --noinput
+      - name: Run backend tests
+        working-directory: backend
+        run: python manage.py test
 
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: npm install --include=optional
-
       - name: Audit Figma functional routes and responsive breakpoints
         run: npm run check:figma-routes
-
       - name: Type-check
         run: npx tsc --noEmit
-
       - name: Lint
         run: npm run lint
-
-      - name: Build application
+      - name: Build frontend
         run: npm run build

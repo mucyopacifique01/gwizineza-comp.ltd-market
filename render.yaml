@@ -5,9 +5,8 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    buildCommand: npm install --include=optional && npm run build
-    # Keep Prisma schema synchronized with MongoDB before starting Next.js.
-    startCommand: npx prisma db push --skip-generate; node scripts/fix-customer-indexes.js; node scripts/fix-seller-indexes.js; npm start
+    buildCommand: npm install --include=optional && npm run check:figma-routes && npm run build
+    startCommand: npm start
     autoDeployTrigger: commit
     healthCheckPath: /api/health
     envVars:
@@ -15,29 +14,59 @@ services:
         value: "20"
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: ADMIN_PASSWORD
-        sync: false
-      - key: ADMIN_SESSION_SECRET
-        generateValue: true
+      - key: DJANGO_API_URL
+        fromService:
+          type: web
+          name: gwizineza-django-api
+          envVarKey: RENDER_EXTERNAL_URL
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_WHATSAPP_NUMBER
+        sync: false
+      - key: NEXT_PUBLIC_CONTACT_PHONE
+        sync: false
+      - key: NEXT_PUBLIC_CONTACT_EMAIL
+        sync: false
+      - key: NEXT_PUBLIC_EBM_ENABLED
+        value: "false"
+
+  - type: web
+    name: gwizineza-django-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py migrate --run-syncdb --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 90
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: ".onrender.com,localhost,127.0.0.1"
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_STORAGE_BUCKET
         value: product-images
+      - key: ADMIN_PASSWORD
+        sync: false
       - key: TEXTBEE_API_KEY
         sync: false
       - key: TEXTBEE_DEVICE_ID
         sync: false
       - key: SUPABASE_SEND_SMS_HOOK_SECRET
-        sync: false
-      - key: APP_URL
-        value: https://gwizineza-company-ltd.onrender.com
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
         sync: false

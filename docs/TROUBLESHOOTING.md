@@ -1,77 +1,44 @@
-# Troubleshooting: Products Not Showing / Database Connection Errors
+# Troubleshooting
 
-This guide collects everything diagnosed while debugging the "products are invisible"
-issue (buttons disabled, empty product grid, 503 API errors). Last verified: 2026-09-18.
+## Django API returns 503 / 502
 
-## Symptom
+- Confirm the frontend service has DJANGO_API_URL set to the public Django service URL.
+- Open /api/health on the Django service and check the databaseStatus value.
+- Confirm DATABASE_URL on the Django service is the Supabase PostgreSQL connection string. Use the Supabase Session Pooler when the hosting environment needs IPv4, and require SSL in production.
+- Check the Django service logs for PostgreSQL authentication, network or schema synchronization errors.
+- The frontend proxy reports 503 if DJANGO_API_URL is unset and 502 if Django cannot be reached.
 
-The storefront loads but shows no products, and cart buttons stay disabled.
-The API endpoints return 503 with:
+## Supabase database/schema issue
 
-```json
-{"error":"Database connection failed. Check that DATABASE_URL is set correctly and that MongoDB Atlas allows connections from this server (Network Access / IP Access List)."}
-```
+- Make sure the database password and URI are URL-encoded correctly.
+- Ensure the URL targets PostgreSQL, not a MongoDB connection string.
+- Check that the Django service can connect to Supabase and that its startup command completed migrate --run-syncdb.
+- To insert demonstration products, run python manage.py seed_marketplace from backend/.
 
-This error is raised by `lib/api-errors.ts` when Prisma cannot reach MongoDB at all.
-It happens **before any product data is read**, so the data itself is never the cause
-while this message is visible.
+## Email OTP not arriving
 
-## Root cause checklist (in order)
+- Enable Email authentication in Supabase.
+- Configure SMTP and an email template that renders the numeric token using the Supabase token template variable.
+- Check the spam folder and Supabase Auth logs. Respect provider rate limits.
 
-1. **MongoDB Atlas Network Access** — Render (free plan) uses dynamic IPs, so Atlas
-   must allow connections from anywhere:
-   - Atlas → Network Access → Add IP Address → `0.0.0.0/0` (Allow access from anywhere).
+## Phone OTP not arriving
 
-2. **Atlas cluster paused** — free M0 clusters pause after inactivity.
-   - Atlas → check the cluster shows **Active**; if paused, click **Resume**.
+- Enable Phone authentication in Supabase Auth.
+- Configure its Send SMS Hook to the Django endpoint /api/auth/send-sms-hook.
+- Set SUPABASE_SEND_SMS_HOOK_SECRET, TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID when required on the Django service.
+- Confirm the hook signing secret matches Supabase and the TextBee device/account can send messages. Test with a real phone number in international format.
 
-3. **DATABASE_URL in Render** — Render → your service → Environment:
-   - Must be present (it is marked `sync: false` in `render.yaml`, so Render never
-     auto-fills it; it must be pasted manually).
-   - Must include the database name `/gwizineza` and have **no quotes or extra
-     characters**:
-     ```text
-     mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/gwizineza?retryWrites=true&w=majority
-     ```
-   - Missing `/gwizineza` causes Prisma error `P1013` (database name invalid).
+## Image upload fails
 
-4. **Redeploy after fixing** — Render → Manual Deploy → Deploy latest commit.
-   Render only re-reads environment variables on a new deploy.
+- Check SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET on Django.
+- Make sure the product-images bucket is available and the key belongs to the same project. Never put the service-role key in a NEXT_PUBLIC environment variable.
 
-## How the database fills itself
+## Admin or seller login fails
 
-Once the connection works, no manual seeding is needed:
+- Confirm ADMIN_PASSWORD exists on Django for owner login.
+- Seller accounts are created by the owner and need an active status, login username and password.
+- Suspended sellers cannot use seller endpoints even with an old cookie.
 
-- `prisma db push` runs as part of the deploy (see `package.json` start/build flow)
-  and creates all collections and validators.
-- On the first successful request to the storefront/admin API, the app runs
-  `ensureStarterCatalog()` in `app/api/products/route.ts`, which inserts the
-  starter categories and products automatically.
+## Payments, EBM or WhatsApp
 
-## Verifying
-
-```bash
-curl https://<your-render-url>/api/products   # should return {"products":[...]}
-curl https://<your-render-url>/api/categories # should return {"categories":[...]}
-```
-
-Both must return JSON data (not an error) before the storefront can show products.
-
-## Local development notes
-
-- Prisma requires MongoDB to run as a **replica set** even for single upserts
-  (error `P2031`). Atlas is always a replica set, so this only affects local dev.
-- Quick local replica set for testing:
-  ```js
-  // node script using mongodb-memory-server-core
-  const { MongoMemoryReplSet } = require('mongodb-memory-server-core');
-  const rs = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  // use rs.getUri() as DATABASE_URL
-  ```
-- Then: `DATABASE_URL="mongodb://127.0.0.1:PORT/gwizineza?replicaSet=testset&directConnection=true" npx prisma db push`
-
-## Related docs
-
-- [Launch plan](LAUNCH-PLAN.md)
-- [Implementation roadmap](IMPLEMENTATION-ROADMAP.md)
-- [Store features implementation](STORE-FEATURES-IMPLEMENTATION.md)
+Provider payment collection, official EBM invoicing and automated WhatsApp receipts are not automatically activated by the database migration. Verify the selected provider, credentials, signed webhooks and local compliance requirements before enabling them.
