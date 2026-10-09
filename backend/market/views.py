@@ -622,9 +622,11 @@ def api_dispatch(request, resource=""):
             db_status = "ok"
         except Exception:
             db_status = "unavailable"
+        # Always answer 200 so the hosting health check keeps the instance alive during a
+        # database outage; reachability is reported in the body instead.
         return j({"ok": db_status == "ok", "backend": "Django",
                   "database": "Supabase PostgreSQL", "databaseStatus": db_status,
-                  "time": iso(timezone.now())}, 200 if db_status == "ok" else 503)
+                  "time": iso(timezone.now())}, 200)
 
     if path in {"auth/send-sms-hook"} and method == "POST":
         return send_textbee_hook(request)

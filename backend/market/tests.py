@@ -58,3 +58,76 @@ class MarketApiTests(TestCase):
     def test_phone_normalization_converts_rwanda_local_number(self):
         from .views import normalize_contact
         self.assertEqual(normalize_contact("078 123 4567"), ("phone", "+250781234567"))
+
+
+class AuthFlowTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+
+    def test_normalize_contact_accepts_email_and_international_phone(self):
+        from .views import normalize_contact
+        self.assertEqual(normalize_contact("Pacifique@Example.COM"), ("email", "pacifique@example.com"))
+        self.assertEqual(normalize_contact("+250 788 123 456"), ("phone", "+250788123456"))
+        self.assertEqual(normalize_contact("not-a-contact"), (None, None))
+
+    def test_otp_send_reports_missing_supabase_configuration(self):
+        with self.settings(SUPABASE_URL="", SUPABASE_ANON_KEY=""):
+            response = self.client.post("/api/customer/auth/otp/send",
+                                        data='{"contact":"+250788123456"}', content_type="application/json")
+            self.assertEqual(response.status_code, 503)
+            self.assertIn("not configured", response.json()["error"])
+
+    def test_otp_verify_rejects_malformed_codes(self):
+        with self.settings(SUPABASE_URL="", SUPABASE_ANON_KEY=""):
+            response = self.client.post("/api/customer/auth/otp/verify",
+                                        data='{"contact":"+250788123456","code":"12"}', content_type="application/json")
+            self.assertEqual(response.status_code, 400)
+
+    def test_google_login_is_retired_with_gone(self):
+        response = self.client.post("/api/customer/auth/google")
+        self.assertEqual(response.status_code, 410)
+
+
+class AdminAndCartTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.category = Category.objects.create(name="Hardware", slug="hardware")
+        self.product = Product.objects.create(
+            sku="HAM-1", name="Hammer", slug="hammer", price_rwf=5000, stock=10,
+            category=self.category, is_active=True,
+        )
+
+    def test_admin_login_and_session(self):
+        with self.settings(ADMIN_PASSWORD=""):
+            response = self.client.post("/api/admin/login",
+                                        data='{"password":"owner-secret"}', content_type="application/json")
+            self.assertEqual(response.status_code, 503)
+        with self.settings(ADMIN_PASSWORD="owner-secret"):
+            response = self.client.post("/api/admin/login",
+                                        data='{"password":"wrong"}', content_type="application/json")
+            self.assertEqual(response.status_code, 401)
+            response = self.client.post("/api/admin/login",
+                                        data='{"password":"owner-secret"}', content_type="application/json")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("gwizineza_admin_session", response.cookies)
+            orders = self.client.get("/api/admin/orders")
+            self.assertEqual(orders.status_code, 200)
+
+    def test_cart_add_then_checkout_creates_order(self):
+        response = self.client.post("/api/cart",
+                                    data='{"cartId":"t1","productId":"%s","quantity":2}' % self.product.id,
+                                    content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        response = self.client.post("/api/checkout",
+                                    data='{"cartId":"t1","customerName":"Test Buyer","phone":"0788123456","deliveryAddress":"Kigali","paymentMethod":"COD"}',
+                                    content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()["order"]
+        self.assertEqual(payload["customerName"], "Test Buyer")
+        self.assertEqual(payload["subtotalRwf"], 10000)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 8)
+
+    def test_cart_rejects_missing_fields(self):
+        response = self.client.post("/api/cart", data='{"cartId":"t1"}', content_type="application/json")
+        self.assertEqual(response.status_code, 400)
