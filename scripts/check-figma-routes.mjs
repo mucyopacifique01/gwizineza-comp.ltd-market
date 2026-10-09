@@ -5,10 +5,11 @@ import path from 'node:path';
 const root = process.cwd();
 const routes = [
   ['Homepage', 'app/(store)/page.tsx'],
-  ['Shop and search results', 'app/(store)/shop/page.tsx'],
+  ['Shop', 'app/(store)/shop/page.tsx'],
   ['Product details', 'app/(store)/product/[slug]/page.tsx'],
   ['Cart', 'app/(store)/cart/page.tsx'],
   ['Checkout', 'app/(store)/checkout/page.tsx'],
+  ['Search results', 'app/(store)/search/page.tsx'],
   ['Login and registration', 'app/(store)/auth/page.tsx'],
   ['Customer account', 'app/(store)/account/page.tsx'],
   ['Order history', 'app/(store)/orders/page.tsx'],
@@ -59,6 +60,6 @@ if (missing.length || responsiveChecks.some(([, ok]) => !ok)) {
   process.exitCode = 1;
 } else {
   console.log(`PASS: all ${routes.length} functional routes exist.`);
-  console.log('PASS: mobile and tablet breakpoints are defined.');
+  console.log('PASS: mobile and tablet breakpoints and reduced-motion support are defined.');
   console.log('NOTE: route-file checks do not replace browser/E2E testing or a live deployment smoke test.');
 }
