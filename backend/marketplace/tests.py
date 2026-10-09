@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from marketplace.models import Category, Product, Seller
+from marketplace.models import CartItem, Category, DeliveryZone, Order, Product, Seller
 
 User = get_user_model()
 
@@ -62,3 +62,50 @@ class MarketplaceApiSmokeTests(TestCase):
         response = self.client.get("/api/v1/products/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 0)
+
+
+    def test_checkout_uses_server_totals_and_deducts_stock_atomically(self):
+        self.client.force_authenticate(user=self.owner)
+        CartItem.objects.create(user=self.owner, product=self.product, quantity=1)
+        zone = DeliveryZone.objects.create(name="Kabarondo zone", fee_rwf=500, estimated_days=1)
+
+        response = self.client.post(
+            "/api/v1/checkout/",
+            {
+                "customer_name": "Test Customer",
+                "customer_phone": "0780000000",
+                "delivery_address": "Kabarondo, Rwanda",
+                "delivery_zone_id": zone.id,
+                "payment_method": "cod",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(int(response.data["subtotal_rwf"]), 1500)
+        self.assertEqual(int(response.data["delivery_fee_rwf"]), 500)
+        self.assertEqual(int(response.data["total_rwf"]), 2000)
+        self.assertEqual(response.data["payment"]["status"], "pending")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 11)
+        self.assertFalse(CartItem.objects.filter(user=self.owner).exists())
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_online_payment_is_rejected_until_a_provider_is_configured(self):
+        self.client.force_authenticate(user=self.owner)
+        CartItem.objects.create(user=self.owner, product=self.product, quantity=1)
+
+        response = self.client.post(
+            "/api/v1/checkout/",
+            {
+                "customer_name": "Test Customer",
+                "customer_phone": "0780000000",
+                "delivery_address": "Kabarondo, Rwanda",
+                "payment_method": "momo",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertTrue(CartItem.objects.filter(user=self.owner).exists())
