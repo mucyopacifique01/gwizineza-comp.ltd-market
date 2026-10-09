@@ -71,6 +71,8 @@ export type CatalogQuery = {
   q?: string | null;
   category?: string | null;
   seller?: string | null;
+  /** Restrict results to these product IDs (used by saved-product pages). */
+  ids?: string[];
   minPrice?: number | null;
   maxPrice?: number | null;
   inStock?: boolean;
@@ -99,6 +101,10 @@ export async function getProducts(query: CatalogQuery = {}) {
   if (query.category) and.push({ category: { slug: query.category } });
   if (query.q) and.push({ OR: [{ name: { contains: query.q, mode: 'insensitive' } }, { description: { contains: query.q, mode: 'insensitive' } }] });
   if (query.seller && isObjectId(query.seller)) and.push({ sellerId: query.seller });
+  if (query.ids) {
+    const ids = [...new Set(query.ids.filter(isObjectId))].slice(0, 60);
+    and.push({ id: { in: ids } });
+  }
   if (typeof query.minPrice === 'number' && query.minPrice > 0) and.push({ priceRwf: { gte: query.minPrice } });
   if (typeof query.maxPrice === 'number' && query.maxPrice > 0) and.push({ priceRwf: { lte: query.maxPrice } });
   if (query.inStock) and.push({ stock: { gt: 0 } });
