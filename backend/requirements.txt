@@ -1,0 +1,7 @@
+Django==6.1.2
+djangorestframework==3.18.1
+django-cors-headers>=4.7,<5
+dj-database-url>=2.3,<3
+psycopg[binary]>=3.2,<4
+PyJWT[crypto]>=2.10,<3
+gunicorn>=23,<24

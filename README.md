@@ -4,6 +4,12 @@
 
 Rwanda-focused e-commerce platform for selling goods online. Customers browse products, add items to a cart, provide delivery details, place orders, and track orders.
 
+## Backend transition: Django + Supabase PostgreSQL
+
+A separate Django REST API is being introduced in the backend directory. It uses PostgreSQL from Supabase and verifies Supabase Auth access tokens. See backend/README.md for local setup and docs/DJANGO-POSTGRES-MIGRATION.md for the API route map and migration checklist.
+
+This is a staged transition: the currently deployed Next.js frontend still uses its existing Prisma/MongoDB API routes. The Django service must be deployed, configured with the real Supabase database URL, and integrated with the frontend before the old database/API can be retired. Do not paste database credentials or JWT secrets into browser code or commit them to GitHub.
+
 ## Frontend upgrade (2026)
 
 The storefront, owner console and seller console were redesigned. See **docs/FRONTEND-UPGRADE.md** for architecture, API changes, security fixes and known gaps.
