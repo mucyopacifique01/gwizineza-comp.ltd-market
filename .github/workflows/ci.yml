@@ -1,50 +1,27 @@
-name: Frontend and Django checks
+name: Build and type-check
 
 on:
   push:
-    branches: [main, migration/django-supabase-postgres-otp]
+    branches: [main, migration/django-supabase-otp]
   pull_request:
     branches: [main]
 
 jobs:
-  backend:
+  django:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: gwizineza
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d gwizineza"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gwizineza
-      DJANGO_SECRET_KEY: ci-only-secret-key-not-for-production
-      DJANGO_DEBUG: "true"
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
-      ADMIN_PASSWORD: ci-only-admin-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install Django dependencies
+      - name: Install Django backend
         run: pip install -r backend/requirements.txt
-      - name: Django system checks
-        working-directory: backend
-        run: python manage.py check
-      - name: Create database tables
-        working-directory: backend
-        run: python manage.py migrate --run-syncdb --noinput
-      - name: Run backend tests
-        working-directory: backend
-        run: python manage.py test
+      - name: Check Django configuration
+        run: python backend/manage.py check
+      - name: Create local test schema
+        run: python backend/manage.py migrate --run-syncdb --noinput
+      - name: Test Django API and OTP hook
+        run: python backend/manage.py test store
 
   frontend:
     runs-on: ubuntu-latest
@@ -54,13 +31,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install frontend dependencies
-        run: npm install --include=optional
-      - name: Audit Figma functional routes and responsive breakpoints
-        run: npm run check:figma-routes
-      - name: Type-check
-        run: npx tsc --noEmit
-      - name: Lint
-        run: npm run lint
-      - name: Build frontend
-        run: npm run build
+      - run: npm install --include=optional
+      - run: npm run check:figma-routes
+      - run: npm run check:architecture
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build

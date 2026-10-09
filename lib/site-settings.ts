@@ -1,6 +1,6 @@
 const API_BASE = (process.env.DJANGO_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
-const DEFAULT_SITE_SETTINGS_BASE = {
+export const DEFAULT_SITE_SETTINGS = {
   key: 'site',
   siteName: 'Gwizineza Market',
   tagline: 'Everyday goods from trusted local sellers, connected in one market.',
@@ -18,9 +18,7 @@ const DEFAULT_SITE_SETTINGS_BASE = {
   mapLng: 30.5585,
 };
 
-export const DEFAULT_SITE_SETTINGS = DEFAULT_SITE_SETTINGS_BASE;
-
-export type SiteSettingsDTO = typeof DEFAULT_SITE_SETTINGS_BASE & {
+export type SiteSettingsDTO = typeof DEFAULT_SITE_SETTINGS & {
   id?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -28,12 +26,11 @@ export type SiteSettingsDTO = typeof DEFAULT_SITE_SETTINGS_BASE & {
 
 export async function getSiteSettings(): Promise<SiteSettingsDTO> {
   try {
-    const response = await fetch(API_BASE + '/api/site/settings', { cache: 'no-store' });
+    const response = await fetch(API_BASE + '/api/site-settings', { cache: 'no-store' });
     if (!response.ok) return DEFAULT_SITE_SETTINGS;
-    const result = await response.json() as { settings?: Partial<SiteSettingsDTO> };
-    return { ...DEFAULT_SITE_SETTINGS, ...(result.settings || {}) };
-  } catch (error) {
-    console.error('[site-settings] Django API unavailable', error);
+    const data = await response.json() as { settings?: Partial<SiteSettingsDTO> };
+    return { ...DEFAULT_SITE_SETTINGS, ...(data.settings ?? {}) };
+  } catch {
     return DEFAULT_SITE_SETTINGS;
   }
 }

@@ -1,15 +1,9 @@
-# Store feature implementation
+# Store feature integration notes
 
-The frontend continues to use its existing /api request contracts. Those requests are now proxied to Django rather than handled by Next.js API route handlers. Django validates requests, enforces the customer/seller/owner role checks and uses Django ORM against Supabase PostgreSQL.
+All browser /api requests are routed to Django. Django owns marketplace business logic and persistence in Supabase PostgreSQL. The storefront and dashboards remain Next.js/React.
 
-Implemented API groups include product/search filters, categories, cart, transactional checkout and stock reservation, order lookup/history, seller products/gallery/orders/stats, owner seller/product/order management, customer OTP/profile, wishlist, review moderation, support tickets, CMS posts, delivery zones, settings, payment records and diagnostics.
+API domains include catalog, categories, sellers, cart, checkout/orders, customer profile/order history, wishlist, reviews, support, content, delivery zones, payments, admin settings/reporting and seller product/order endpoints.
 
-## External integrations still required
+The customer /auth UI uses email OTP or phone SMS OTP only. Phone delivery is configured through the Supabase Auth Send SMS Hook and TextBee; email delivery uses the Supabase Auth SMTP provider and an OTP-style email template.
 
-- Supabase Auth email OTP requires SMTP and the numeric-token email template.
-- Supabase Auth phone OTP requires the Send SMS Hook endpoint and TextBee configuration.
-- Online Mobile Money/card payment requires merchant accounts, payment request APIs and verified provider webhooks.
-- EBM invoicing requires confirming the official Rwanda integration path.
-- Automated WhatsApp receipts require an approved WhatsApp Business integration and order/payment event handling.
-
-Never mark a remote payment as PAID without verifying a provider-signed webhook. Do not describe the order confirmation as an official tax invoice until EBM issuance has been implemented.
+Do not treat an order as paid because a Payment record exists. Do not describe an order confirmation as an official EBM receipt. Online payment providers, EBM integration and automated WhatsApp sending require separate provider setup and verified production flows.
