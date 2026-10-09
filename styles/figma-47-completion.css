@@ -208,3 +208,9 @@
   .figma-store-theme .faq-item summary { padding: 17px 16px; }
   .figma-store-theme .faq-item p { padding: 0 16px 17px; }
 }
+
+
+/* Public announcement configured by the owner in Admin Settings. */
+.figma-store-theme .fig-announcement{background:var(--fig-teal);color:#071217;border-bottom:1px solid var(--fig-line);font-size:12px;font-weight:800;letter-spacing:.01em}
+.figma-store-theme .fig-announcement .container{min-height:32px;display:flex;align-items:center;justify-content:center;text-align:center;padding-block:7px;line-height:1.35}
+@media(max-width:519px){.figma-store-theme .fig-announcement .container{width:calc(100% - 24px);font-size:11px}}
