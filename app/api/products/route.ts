@@ -12,7 +12,7 @@ const num = (value: string | null) => (value && /^\d+$/.test(value) ? Number(val
 
 /**
  * Public product listing (unchanged contract: returns { products }).
- * New optional filters: seller, minPrice, maxPrice, inStock=1, featured=1, sort, page, pageSize.
+ * New optional filters: seller, ids, minPrice, maxPrice, inStock=1, featured=1, sort, page, pageSize.
  * When page/pageSize is supplied the response also includes total/page/pageSize.
  */
 export async function GET(request: Request) {
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       q: url.searchParams.get('q')?.trim() || null,
       category: url.searchParams.get('category'),
       seller: url.searchParams.get('seller'),
+      ids: url.searchParams.has('ids') ? (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 60) : undefined,
       minPrice: num(url.searchParams.get('minPrice')),
       maxPrice: num(url.searchParams.get('maxPrice')),
       inStock: url.searchParams.get('inStock') === '1',
