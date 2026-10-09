@@ -47,14 +47,28 @@ ASGI_APPLICATION = "config.asgi.application"
 
 # DATABASE_URL must be the PostgreSQL connection string copied from Supabase.
 # Production requires TLS; local/CI PostgreSQL can opt out with DJANGO_DEBUG=true.
+# Expected shape:
+#   postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
+# If the database password contains characters like @ : / # ?, URL-encode them
+# (or reset the password to a long alphanumeric one) or the URL cannot be parsed.
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://localhost/gwizineza")
-DATABASES = {
-    "default": dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=60 if not DEBUG else 0,
-        ssl_require=not DEBUG,
+try:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=60 if not DEBUG else 0,
+            ssl_require=not DEBUG,
+        )
+    }
+except ValueError:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "DATABASE_URL is malformed and could not be parsed. "
+        "Re-copy the connection string from Supabase -> Connect -> Session pooler, "
+        "replace [YOUR-PASSWORD], and keep it on one single line. If the database "
+        "password contains characters like @ : / # ?, URL-encode them or reset the "
+        "password to long alphanumerics. No part of the URL was logged on purpose."
     )
-}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Kigali"
