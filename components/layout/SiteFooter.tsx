@@ -27,7 +27,7 @@ export async function SiteFooter({ categories }: { categories: CategoryDTO[] }) 
         </div>
       </div>
       <div className="footer-grid">
-        <div className="footer-brand"><Logo light/><p>Trusted marketplace from {settings.location || site.location}, Rwanda.</p><p className="footer-loc"><Icon name="pin" size={15}/> {settings.location || site.location}</p></div>
+        <div className="footer-brand"><Logo light/><p>Trusted marketplace from {(settings.location || site.location).replace(/,\s*Rwanda\s*$/i, '')}, Rwanda.</p><p className="footer-loc"><Icon name="pin" size={15}/> {settings.location || site.location}</p></div>
         <nav><h3>Marketplace</h3><Link href="/shop">Products</Link><Link href="/categories">Categories</Link><Link href="/sellers">Suppliers</Link><Link href="/deals">Deals</Link></nav>
         <nav><h3>Services</h3><Link href="/trade-assurance">Trade Assurance</Link><Link href="/shipping">Shipping & Logistics</Link><Link href="/help">Help Center</Link><Link href="/blog">Market News</Link></nav>
         <nav><h3>Company</h3><Link href="/about">About us</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav>
