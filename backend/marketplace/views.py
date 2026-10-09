@@ -262,7 +262,7 @@ class CheckoutView(APIView):
 
         with transaction.atomic():
             cart_items = list(
-                CartItem.objects.filter(user=request.user)
+                CartItem.objects.select_for_update().filter(user=request.user)
                 .select_related("product", "product__seller")
                 .order_by("id")
             )
