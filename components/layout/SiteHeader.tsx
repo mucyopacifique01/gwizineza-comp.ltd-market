@@ -19,13 +19,18 @@ const NAV = [
   { href: '/trade-assurance', label: 'Trade Assurance' },
 ];
 
-export function SiteHeader({ categories }: { categories: CategoryDTO[]; announcement?: { enabled: boolean; text: string } }) {
+export function SiteHeader({ categories, announcement }: { categories: CategoryDTO[]; announcement?: { enabled: boolean; text: string } }) {
   const pathname = usePathname();
   const { count, bump } = useCart();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
 
   useEffect(() => { setMenu(false); setSearch(false); }, [pathname]);
+  useEffect(() => {
+    const openSearch = () => setSearch(true);
+    window.addEventListener('gz:open-search', openSearch);
+    return () => window.removeEventListener('gz:open-search', openSearch);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearch(true); }
@@ -39,6 +44,9 @@ export function SiteHeader({ categories }: { categories: CategoryDTO[]; announce
 
   return <>
     <header className="site-header">
+      {announcement?.enabled && announcement.text.trim() && (
+        <div className="fig-announcement"><div className="container">{announcement.text.trim()}</div></div>
+      )}
       <div className="fig-topbar">
         <div className="container fig-topbar-inner">
           <div className="fig-top-links"><span>24/7 Customer Service</span><span>Trade Assurance</span><span>Inspection Service</span></div>
