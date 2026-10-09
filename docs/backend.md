@@ -1,59 +1,47 @@
-# Backend API
+# Django API and Supabase PostgreSQL
 
-The application uses Next.js App Router Route Handlers for its HTTP backend and Prisma for database access. The product, cart, checkout, seller, and product-image endpoints are server-side and can be shared with the future mobile app.
+## Architecture
 
-## Database setup
+The Next.js frontend forwards every /api/* request through app/api/[...path]/route.ts to DJANGO_API_URL. Django owns the API, authorization and business logic. Django ORM connects to Supabase-hosted PostgreSQL using DATABASE_URL. Supabase Auth verifies customer email/SMS OTPs, while Django stores a customer profile linked to the Supabase Auth user ID and issues a signed HttpOnly session cookie. Supabase Storage stores product pictures.
 
-1. Create a PostgreSQL database.
-2. Copy `.env.example` to `.env` and set `DATABASE_URL`.
-3. Install dependencies with `npm install`.
-4. Run `npm run db:generate`.
-5. Run the Prisma migrations with `npx prisma migrate dev`.
-6. Run `npm run db:seed`.
+Prisma, MongoDB drivers, Prisma schema and MongoDB index scripts are removed. Do not add a second database engine.
 
-## Store endpoints
+## Important endpoint groups
 
-- `GET /api/products` — active catalog; supports `q` and `category` filters and returns the product image gallery ordered with the main image first.
-- `POST /api/products` — create a product and optionally attach it to an approved seller. Admin authorization must be added before production use.
-- `GET /api/cart?cartId=...` — retrieve a cart and subtotal.
-- `POST /api/cart` — create/update a cart item.
-- `DELETE /api/cart` — remove a cart item.
-- `POST /api/checkout` — creates an order and reserves stock.
-- `GET /api/orders/:orderNumber` — retrieve an order by public order number.
+- Catalog: GET/POST /api/products, GET/PATCH/DELETE /api/products/<id-or-slug>, GET/POST/PATCH /api/categories.
+- Cart and checkout: GET/POST/DELETE /api/cart, POST /api/checkout, GET /api/orders/<order-number>.
+- OTP accounts: POST /api/customer/auth/otp/send and /api/customer/auth/otp/verify; GET/PATCH /api/customer/me and /api/customer/account; POST /api/customer/auth/logout.
+- Orders: GET /api/customer/orders, GET/PATCH /api/admin/orders, GET /api/seller/orders.
+- Seller: POST /api/seller/auth/login, POST /api/seller/auth/logout, GET/PATCH /api/seller/me, GET/POST/PATCH /api/seller/products, GET /api/seller/stats.
+- Owner: admin login/logout, sellers, product/category management, stats, customers, finance, settings, reviews, support, delivery zones and image uploads.
+- Engagement: wishlist, reviews, customer support tickets, CMS posts and delivery zones.
+- Operations: GET /api/health and GET /api/admin/diagnostics/database.
 
-## Admin seller management
+Responses use camelCase names to match the existing React frontend. Authorization is enforced by Django for admin/seller/customer APIs; the Next.js middleware is only an early navigation redirect.
 
-- `GET /api/sellers` — list sellers and product counts.
-- `POST /api/sellers` — create a seller from the admin dashboard.
-- `PATCH /api/sellers` — approve, suspend, or reactivate a seller.
-- `/admin` — admin marketplace dashboard.
+## OTP delivery
 
-Seller records include business name, owner name, phone, email, address and status (`PENDING`, `APPROVED`, `SUSPENDED`). Products can be linked to sellers, and order items retain the seller ID for future seller-level reporting and payouts.
+1. Frontend POSTs a contact and optional name to /api/customer/auth/otp/send.
+2. Django normalizes the email or phone and asks Supabase Auth to send an OTP.
+3. For email, configure an SMTP provider and an email template that renders the numeric token.
+4. For phone, configure the Supabase Auth Send SMS Hook to /api/auth/send-sms-hook. Django verifies the signed hook request and sends the supplied code through TextBee.
+5. Frontend POSTs contact and code to /api/customer/auth/otp/verify. Django asks Supabase Auth to validate it, persists the linked profile and sets the signed customer cookie.
 
-## Product image galleries
+Do not log OTPs or return Supabase service-role keys. The code has basic per-process OTP send throttling; for a multi-instance high-traffic production launch, move that throttle to a shared cache.
 
-Each product now supports multiple `ProductImage` records. The admin can:
+## Local check commands
 
-- Add multiple pictures to one product.
-- Choose which picture is the main picture.
-- Reorder gallery pictures.
-- Remove pictures.
-- Add alternative text for each picture.
-- Preview the main picture with smaller gallery pictures layered behind it.
+- pip install -r backend/requirements.txt
+- python backend/manage.py check
+- python backend/manage.py test (requires PostgreSQL configured by DATABASE_URL)
+- python backend/manage.py migrate --run-syncdb --noinput
+- python backend/manage.py seed_marketplace
+- npm install --include=optional
+- npm run check:figma-routes
+- npx tsc --noEmit
+- npm run lint
+- npm run build
 
-Endpoints:
+## Known launch dependencies
 
-- `GET /api/product-images?productId=...` — list a product's pictures.
-- `POST /api/product-images` — add a picture.
-- `PATCH /api/product-images` — change the picture URL, description, order, or main-image status.
-- `DELETE /api/product-images?id=...` — remove a picture.
-
-The current foundation accepts image URLs. A secure file-upload/storage service can be connected later so the admin can upload pictures directly instead of pasting URLs.
-
-## Security notes
-
-- The current seller/image management dashboard is a development foundation; it is not an authenticated admin system yet.
-- Add authentication and role-based authorization before exposing `/admin`, `/api/sellers`, `/api/product-images`, or product creation publicly.
-- Do not expose `DATABASE_URL` or payment/EBM/WhatsApp credentials to browser code.
-- Payment must be verified server-to-server before setting an order to `PAID`.
-- EBM issuance and WhatsApp receipt delivery should happen after verified payment, ideally through idempotent server-side jobs/webhooks.
+Configure Supabase PostgreSQL credentials, Supabase Auth email SMTP, SMS hook settings and TextBee secrets in the appropriate service environment. CI does not send real OTPs. Online payment, EBM issuance and automated WhatsApp receipts need provider-specific implementations and credentials; they are not enabled by setting a payment method to MOMO or CARD.

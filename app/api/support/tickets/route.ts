@@ -1,6 +1,0 @@
-import { db } from '@/lib/prisma';
-import { requireCustomer } from '@/lib/customer-auth';
-import { apiErrorResponse } from '@/lib/api-errors';
-export const runtime='nodejs'; export const dynamic='force-dynamic';
-export async function GET(){try{const customerId=requireCustomer();const tickets=await db.supportTicket.findMany({where:{customerId},orderBy:{createdAt:'desc'}});return Response.json({tickets});}catch(e){return apiErrorResponse('support/tickets',e)}}
-export async function POST(req:Request){try{const customerId=requireCustomer();const b=await req.json();const subject=String(b.subject||'').trim().slice(0,160),message=String(b.message||'').trim().slice(0,4000);if(!subject||!message)return Response.json({error:'subject and message are required'},{status:400});const c=await db.customer.findUnique({where:{id:customerId},select:{email:true,phone:true}});const ticket=await db.supportTicket.create({data:{customerId,subject,message,email:c?.email||null,phone:c?.phone||null,priority:b.priority&&['LOW','NORMAL','HIGH','URGENT'].includes(b.priority)?b.priority:'NORMAL'}});return Response.json({ticket},{status:201});}catch(e){return apiErrorResponse('support/tickets',e)}}

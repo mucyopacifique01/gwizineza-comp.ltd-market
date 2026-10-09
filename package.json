@@ -1,6 +1,6 @@
 {
   "name": "gwizineza-market",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "node": ">=20 <23"
@@ -10,20 +10,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check:figma-routes": "node scripts/check-figma-routes.mjs",
-    "postinstall": "prisma generate",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts"
+    "check:figma-routes": "node scripts/check-figma-routes.mjs"
   },
   "dependencies": {
-    "@prisma/client": "6.17.1",
     "@supabase/supabase-js": "^2.57.4",
-    "mongodb": "^7.7.0",
     "next": "14.2.35",
     "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "standardwebhooks": "^1.1.1"
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@types/node": "20.14.12",
@@ -31,8 +24,6 @@
     "@types/react-dom": "18.3.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.15",
-    "prisma": "6.17.1",
-    "tsx": "4.19.1",
     "typescript": "5.5.4"
   }
 }

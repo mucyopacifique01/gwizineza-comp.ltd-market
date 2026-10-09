@@ -33,3 +33,4 @@ next-env.d.ts
 node_modules/.prisma/
 *.tsbuildinfo
 package-lock.json
+__pycache__/
