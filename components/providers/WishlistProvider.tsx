@@ -2,9 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-type WishlistApi = { ids: string[]; has: (id: string) => boolean; toggle: (id: string) => Promise<boolean> };
+type WishlistApi = { ids: string[]; ready: boolean; has: (id: string) => boolean; toggle: (id: string) => Promise<boolean> };
 const KEY = 'gwizineza-wishlist';
-const WishlistContext = createContext<WishlistApi>({ ids: [], has: () => false, toggle: async () => false });
+const WishlistContext = createContext<WishlistApi>({ ids: [], ready: false, has: () => false, toggle: async () => false });
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) } });
@@ -16,6 +16,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [ids, setIds] = useState<string[]>([]);
   const [signedIn, setSignedIn] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -33,6 +34,9 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (alive) setSignedIn(false);
+      })
+      .finally(() => {
+        if (alive) setReady(true);
       });
 
     return () => { alive = false; };
@@ -54,7 +58,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     return !currentlySaved;
   }, [ids, signedIn]);
 
-  const value = useMemo(() => ({ ids, has, toggle }), [ids, has, toggle]);
+  const value = useMemo(() => ({ ids, ready, has, toggle }), [ids, ready, has, toggle]);
   return <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>;
 }
 
