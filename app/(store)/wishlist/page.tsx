@@ -1,1 +1,7 @@
-import { FigmaMarketplacePage } from '@/components/content/FigmaMarketplacePage'; import { getProducts } from '@/lib/catalog'; export const dynamic='force-dynamic'; export default async function WishlistPage(){const {products}=await getProducts({pageSize:8,sort:'newest'});return <FigmaMarketplacePage kind="wishlist" products={products}/>} 
+import { FigmaMarketplacePage } from '@/components/content/FigmaMarketplacePage';
+
+export const dynamic = 'force-dynamic';
+
+export default function WishlistPage() {
+  return <FigmaMarketplacePage kind="wishlist" />;
+}
