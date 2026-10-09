@@ -4,8 +4,12 @@ from pathlib import Path
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "local-only-change-me-before-deploy")
+from django.core.exceptions import ImproperlyConfigured
+
 DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or ("local-only-change-me" if DEBUG else "")
+if not SECRET_KEY:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false.")
 ALLOWED_HOSTS = [value.strip() for value in os.environ.get(
     "DJANGO_ALLOWED_HOSTS", ".onrender.com,localhost,127.0.0.1"
 ).split(",") if value.strip()]

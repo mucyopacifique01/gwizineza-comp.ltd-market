@@ -411,19 +411,31 @@ def send_textbee_hook(request):
             return j({"error": "Expired SMS hook signature"}, 401)
     except (TypeError, ValueError):
         return j({"error": "Invalid SMS hook timestamp"}, 401)
-    key = secret.removeprefix("whsec_")
-    try:
-        import base64
-        key_bytes = base64.b64decode(key)
-    except Exception:
-        key_bytes = secret.encode()
-    expected = __import__("base64").b64encode(
-        hmac.new(key_bytes, hook_id.encode() + b"." + stamp.encode() + b"." + raw, hashlib.sha256).digest()
-    ).decode()
-    valid = any(
-        hmac.compare_digest(item.split(",", 1)[1], expected)
-        for item in signatures.split() if item.startswith("v1,") and "," in item
-    )
+    import base64
+    valid = False
+    signed_payload = hook_id.encode() + b"." + stamp.encode() + b"." + raw
+    presented_signatures = [
+        item.split(",", 1)[1]
+        for item in signatures.split()
+        if item.startswith("v1,") and "," in item
+    ]
+    # Supabase supports key rotation with secrets separated by "|". Its current
+    # Standard Webhooks format is v1,whsec_<base64>; tolerate a bare whsec_ key
+    # too, but never fall back to accepting an unsigned request.
+    for configured_secret in secret.split("|"):
+        candidate = configured_secret.strip()
+        if candidate.startswith("v1,"):
+            candidate = candidate.split(",", 1)[1]
+        if candidate.startswith("whsec_"):
+            candidate = candidate[len("whsec_"):]
+        try:
+            key_bytes = base64.b64decode(candidate, validate=True)
+        except (ValueError, TypeError):
+            continue
+        expected = base64.b64encode(hmac.new(key_bytes, signed_payload, hashlib.sha256).digest()).decode()
+        if any(hmac.compare_digest(item, expected) for item in presented_signatures):
+            valid = True
+            break
     if not valid:
         return j({"error": "Invalid Supabase Auth hook signature"}, 401)
     try:
@@ -453,12 +465,12 @@ def send_textbee_hook(request):
 
 def product_from_path(path):
     identifier = path.split("/", 1)[1] if "/" in path else ""
-    try:
-        return Product.objects.select_related("category", "seller").prefetch_related("images").filter(
-            Q(id=identifier) | Q(slug=identifier)
-        ).first()
-    except (ValueError, TypeError):
-        return Product.objects.select_related("category", "seller").prefetch_related("images").filter(slug=identifier).first()
+    qs = Product.objects.select_related("category", "seller").prefetch_related("images")
+    # Do not send arbitrary slugs through the UUID database field: PostgreSQL
+    # correctly rejects a non-UUID value before the OR query can match the slug.
+    if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}", identifier):
+        return qs.filter(Q(id=identifier) | Q(slug=identifier)).first()
+    return qs.filter(slug=identifier).first()
 
 
 def handle_upload(request, path):

@@ -19,7 +19,7 @@ export type PublicSeller = {
   id: string;
   businessName: string;
   address: string | null;
-  since?: string;
+  since: string;
   products: ProductDTO[];
 };
 
@@ -108,7 +108,7 @@ export async function getPublicSellers(): Promise<PublicSeller[]> {
       id: seller.id,
       businessName: seller.businessName,
       address: seller.address ?? null,
-      since: seller.since,
+      since: seller.since ?? '',
       products: seller.products ?? [],
     }));
   } catch {

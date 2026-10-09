@@ -40,3 +40,21 @@ class MarketApiTests(TestCase):
         body = response.content.decode().lower()
         self.assertNotIn("service_role", body)
         self.assertNotIn("database_url", body)
+
+
+    def test_product_detail_by_slug_works_with_uuid_primary_keys(self):
+        product = Product.objects.create(
+            sku="SLUG-1",
+            name="Slug Lookup Rice",
+            slug="slug-lookup-rice",
+            price_rwf=1800,
+            stock=3,
+            is_active=True,
+        )
+        response = self.client.get("/api/products/slug-lookup-rice")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["product"]["id"], str(product.id))
+
+    def test_phone_normalization_converts_rwanda_local_number(self):
+        from .views import normalize_contact
+        self.assertEqual(normalize_contact("078 123 4567"), ("phone", "+250781234567"))
