@@ -24,7 +24,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     try {
       const raw = JSON.parse(localStorage.getItem(KEY) ?? '[]');
       if (Array.isArray(raw)) {
-        localIds = [...new Set(raw.filter((x): x is string => typeof x === 'string'))];
+        localIds = Array.from(new Set(raw.filter((x): x is string => typeof x === 'string')));
         setIds(localIds);
       }
     } catch { /* ignore malformed or unavailable local storage */ }
@@ -67,7 +67,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
           if (failed.length) localStorage.setItem(KEY, JSON.stringify(failed));
           else localStorage.removeItem(KEY);
         } catch { /* ignore storage restrictions */ }
-        if (alive) setIds([...new Set([...mergedIds, ...failed])]);
+        if (alive) setIds(Array.from(new Set([...mergedIds, ...failed])));
       })
       .catch(() => {
         // Not signed in: localStorage remains the source of truth.
