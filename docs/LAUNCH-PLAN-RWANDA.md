@@ -1,60 +1,49 @@
-# Gwizineza Market — Rwanda Launch Plan
+# Gwizineza Market — Rwanda launch plan
 
 Owner: Mucyo Pacifique  
 Business location: Kabarondo, Kayonza District, Rwanda  
 Store language: English
 
-This document records the confirmed operating choices and the remaining setup needed before accepting real payments.
+## Architecture
 
-## Confirmed decisions
+- Next.js/React frontend using the 31 functional Figma screens and 16 responsive mobile/tablet variants.
+- Django backend.
+- Supabase PostgreSQL is the only application database.
+- Supabase Auth email/phone OTP for customer sign-in.
+- Supabase Storage for product images.
+- TextBee SMS delivery through the signed Supabase Auth Send SMS Hook.
 
-- **Customer-facing language:** English.
-- **Payment methods desired:** Mobile Money and card.
-- **Delivery:** Deliver orders to customers.
-- **Receipt handoff:** WhatsApp will initially be handled manually by a person.
-- **EBM:** Not confirmed yet; do not claim that an order receipt is an official EBM invoice.
+## Confirmed product choices
 
-## Existing application foundation
+- Desired online payment options: Mobile Money and card.
+- Delivery: orders are delivered to customers.
+- Initial receipt/WhatsApp process can be manual.
+- EBM setup must be confirmed; never label an order confirmation as an official EBM tax invoice before the authorized flow is in place.
 
-The storefront currently loads products from `/api/products`, manages a cart through `/api/cart`, and submits orders through `/api/checkout`. The current checkout collects customer name, phone number, and delivery address. The homepage says no payment or tax information is requested at this stage.
+## Before enabling real online payments
 
-## Required before enabling real payment collection
-
-1. Choose and open merchant accounts with payment providers that support Rwanda and the intended Mobile Money networks and card payments.
-2. Confirm provider fees, settlement currency, supported networks/cards, refund process, and merchant verification requirements.
-3. Obtain sandbox credentials and provider documentation. Keep secrets only in deployment environment variables; never commit them.
-4. Implement server-side payment initiation, provider callback/webhook signature verification, and reconciliation. Never mark an order paid based only on a browser redirect or customer screenshot.
-5. Add explicit payment status values and an admin workflow for pending, paid, failed, refunded, and cancelled orders.
-6. Test successful, failed, cancelled, duplicate, delayed, and refunded payment flows in sandbox before production.
+1. Choose and onboard payment providers that support the merchant and intended Rwanda transactions.
+2. Confirm fees, settlement currency, supported networks/cards, refund handling and verification requirements.
+3. Obtain sandbox credentials and provider documentation. Keep secrets in deployment variables only.
+4. Implement server-side payment initiation, webhook signature verification and reconciliation. Never mark an order paid from a browser redirect or screenshot.
+5. Test successful, failed, cancelled, duplicate, delayed and refunded transactions before production.
+6. The current payment API records pending intents only; it does not activate MoMo/card payments.
 
 ## Delivery setup still needed
 
-- Define delivery coverage (initially Kabarondo or wider Rwanda), delivery fees, estimated timelines, and how fees are calculated.
-- Define how customers provide a usable location/contact and how staff confirm delivery.
-- Add order statuses such as pending, confirmed, preparing, dispatched, delivered, and cancelled, with staff updates in the admin area.
+- Define delivery areas, fee rules and delivery estimates.
+- Define customer address/contact collection and staff confirmation procedure.
+- Keep status updates and delivery handoff controlled from the admin workflow.
 
-## Manual WhatsApp process (initial phase)
+## Manual WhatsApp and EBM process
 
-- After an order is reviewed and its payment state is confirmed according to the chosen workflow, an authorized staff member may contact the customer using WhatsApp.
-- Use a business-controlled phone and send only the order details needed for fulfillment.
-- Do not send or label a document as an official EBM invoice unless the business has confirmed its EBM process and generated the valid document through that process.
-- Keep a record in the admin workflow of whether the customer was contacted and whether the receipt/document was sent.
+An authorized staff member may manually contact the customer using the business-controlled WhatsApp number after reviewing the order. Send only the information needed to fulfill the order. For official tax documents, confirm applicable obligations and the authorized RRA/EBM device/software/integration process with RRA or a qualified local accountant.
 
-## EBM decision and compliance checkpoint
+## Technical launch checklist
 
-Before automating tax invoices, confirm the business's applicable RRA/EBM obligations and the approved device/software or integration path with a qualified local accountant or RRA. Determine what customer/tax data must be collected and what document is legally issued. Until then, keep EBM integration marked **not configured** and avoid implying compliance.
-
-## Security and launch checks
-
-- Protect admin and seller routes with server-side authentication and role checks.
-- Validate and normalize customer inputs on the server; do not trust client-provided prices or payment status.
-- Add privacy notice and explain how phone/address data is used and retained.
-- Verify database backups, production environment variables, HTTPS, error logging, and recovery procedures.
-- Run `npm run build` and end-to-end tests against a staging database before launch.
-
-## Immediate next actions
-
-1. Owner selects a Rwanda-capable payment provider (or providers) and obtains sandbox access.
-2. Owner confirms delivery areas and pricing.
-3. Owner confirms the EBM process with the appropriate local source.
-4. Developer implements payment and order-state integration against the selected provider's official documentation, then tests it in sandbox.
+- Set Supabase PostgreSQL DATABASE_URL on Django.
+- Set frontend DJANGO_API_URL to the deployed Django service.
+- Configure Supabase Auth email provider/SMTP and numeric OTP template.
+- Configure Phone Auth Send SMS Hook, signature secret and TextBee.
+- Validate server-side authorization, input validation, backups, HTTPS and recovery procedures.
+- Run GitHub CI and smoke-test all major frontend/API flows after deployment.

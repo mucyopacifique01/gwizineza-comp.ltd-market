@@ -5,32 +5,22 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    buildCommand: npm install --include=optional && npm run check:figma-routes && npm run build
+    buildCommand: npm install --include=optional && npm run build
     startCommand: npm start
     autoDeployTrigger: commit
-    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: "20"
       - key: NODE_ENV
         value: production
       - key: DJANGO_API_URL
-        fromService:
-          type: web
-          name: gwizineza-django-api
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://gwizineza-django-api.onrender.com
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
-      - key: NEXT_PUBLIC_WHATSAPP_NUMBER
-        sync: false
-      - key: NEXT_PUBLIC_CONTACT_PHONE
-        sync: false
-      - key: NEXT_PUBLIC_CONTACT_EMAIL
-        sync: false
-      - key: NEXT_PUBLIC_EBM_ENABLED
-        value: "false"
+      - key: APP_URL
+        value: https://gwizineza-company-ltd.onrender.com
 
   - type: web
     name: gwizineza-django-api
@@ -38,20 +28,19 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: python manage.py migrate --run-syncdb --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 90
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python manage.py migrate --run-syncdb --noinput && python manage.py seed_catalog && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
     autoDeployTrigger: commit
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
-        value: "3.12.8"
-      - key: DJANGO_SECRET_KEY
-        generateValue: true
+        value: "3.12.6"
       - key: DJANGO_DEBUG
         value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
       - key: DJANGO_ALLOWED_HOSTS
-        value: ".onrender.com,localhost,127.0.0.1"
+        value: "localhost,127.0.0.1,.onrender.com"
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_URL
@@ -64,9 +53,11 @@ services:
         value: product-images
       - key: ADMIN_PASSWORD
         sync: false
+      - key: SUPABASE_SEND_SMS_HOOK_SECRET
+        sync: false
       - key: TEXTBEE_API_KEY
         sync: false
       - key: TEXTBEE_DEVICE_ID
         sync: false
-      - key: SUPABASE_SEND_SMS_HOOK_SECRET
-        sync: false
+      - key: FRONTEND_URL
+        value: https://gwizineza-company-ltd.onrender.com

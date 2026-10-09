@@ -1,15 +1,19 @@
 const KEY = 'gwizineza-cart-id';
 
 function createCartId() {
-  const bytes = new Uint8Array(12);
+  if (typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
   window.crypto.getRandomValues(bytes);
-  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
 }
 
-/** Same storage key and 24-hex ObjectId format as the previous storefront, so existing carts survive. */
+/** Store UUID cart IDs because Django/Supabase PostgreSQL use UUID primary keys. */
 export function getCartId() {
   const existing = window.localStorage.getItem(KEY);
-  if (existing && /^[a-f0-9]{24}$/i.test(existing)) return existing;
+  if (existing && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing)) return existing;
   const id = createCartId();
   window.localStorage.setItem(KEY, id);
   return id;

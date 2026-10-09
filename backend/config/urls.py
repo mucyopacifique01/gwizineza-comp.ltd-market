@@ -1,18 +1,11 @@
 from django.http import JsonResponse
-from django.urls import path, re_path
-from market.views import api_dispatch
+from django.urls import path
+from store.views import dispatch
 
-
-def root(_request):
-    return JsonResponse({
-        "name": "Gwizineza Market API",
-        "backend": "Django",
-        "database": "Supabase PostgreSQL",
-        "health": "/api/health",
-    })
-
+def api_root(_request):
+    return JsonResponse({"service": "Gwizineza Django API", "database": "Supabase PostgreSQL", "authentication": "Supabase email/phone OTP"})
 
 urlpatterns = [
-    path("", root),
-    re_path(r"^api/(?P<resource>.*)$", api_dispatch),
+    path("api/", api_root),
+    path("api/<path:api_path>", dispatch),
 ]

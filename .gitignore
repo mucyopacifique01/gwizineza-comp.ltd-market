@@ -1,14 +1,18 @@
-# dependencies
+# JavaScript dependencies
 node_modules/
 
-# next.js build output
+# Next.js
 .next/
 out/
-
-# production
 build/
 
-# environment files (secrets must never be committed)
+# Python / Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+backend/staticfiles/
+
+# Environment files (secrets must never be committed)
 .env
 .env.local
 .env*.local
@@ -28,9 +32,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# prisma generated client
-node_modules/.prisma/
-*.tsbuildinfo
 package-lock.json
-__pycache__/
