@@ -15,6 +15,14 @@ export type CatalogQuery = {
   admin?: boolean;
 };
 
+export type PublicSeller = {
+  id: string;
+  businessName: string;
+  address: string | null;
+  since?: string;
+  products: ProductDTO[];
+};
+
 const API_BASE = (process.env.DJANGO_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
 async function api<T>(path: string): Promise<T> {
@@ -91,10 +99,18 @@ export async function getBestSellers(take = 8) {
   return (await getProducts({ sort: 'featured', pageSize: take })).products;
 }
 
-export async function getPublicSellers() {
+export async function getPublicSellers(): Promise<PublicSeller[]> {
   try {
-    const result = await api<{ sellers: Array<{ id: string; businessName: string; address?: string | null; since?: string; products?: ProductDTO[] }> }>('/api/sellers');
-    return result.sellers || [];
+    const result = await api<{ sellers: Array<{
+      id: string; businessName: string; address?: string | null; since?: string; products?: ProductDTO[];
+    }> }>('/api/sellers');
+    return (result.sellers || []).map(seller => ({
+      id: seller.id,
+      businessName: seller.businessName,
+      address: seller.address ?? null,
+      since: seller.since,
+      products: seller.products ?? [],
+    }));
   } catch {
     return [];
   }
@@ -104,7 +120,7 @@ export async function getSellerOptions() {
   return (await getPublicSellers()).map(seller => ({ id: seller.id, businessName: seller.businessName }));
 }
 
-/** Seed the first-run catalog with: python manage.py seed_marketplace (Django backend). */
+/** Run python manage.py seed_marketplace from the Django backend to seed demo products. */
 export async function ensureStarterCatalog() {
   return undefined;
 }

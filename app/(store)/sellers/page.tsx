@@ -9,7 +9,6 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Sellers', description: 'Meet the approved local sellers on Gwizineza Market.' };
 
 export default async function SellersPage() {
-  // Degrade to an empty list instead of crashing the page if the database is briefly unreachable.
   const sellers = await safeCatalog('public-sellers', [] as Awaited<ReturnType<typeof getPublicSellers>>, getPublicSellers);
   return (
     <div className="container section-tight">
