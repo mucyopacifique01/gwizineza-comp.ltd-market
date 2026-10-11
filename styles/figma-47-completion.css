@@ -172,3 +172,22 @@
 .figma-store-theme .fig-announcement { background: var(--fig-teal); color: #071217; border-bottom: 1px solid var(--fig-line); font-size: 12px; font-weight: 800; letter-spacing: .01em; }
 .figma-store-theme .fig-announcement .container { min-height: 32px; display: flex; align-items: center; justify-content: center; text-align: center; padding-block: 7px; line-height: 1.35; }
 @media (max-width: 519px) { .figma-store-theme .fig-announcement .container { width: calc(100% - 24px); font-size: 11px; } }
+
+/* Shop: keep the search / sort bar pinned to the top of the viewport while scrolling.
+   The Figma header scrolls away (position: relative), so pin to top: 0 with a solid background. */
+.figma-store-theme .shop-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--fig-panel);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, .75);
+}
+.figma-store-theme .shop-results { min-width: 0; }
+.figma-store-theme .shop-toolbar .shop-search { flex: 1 1 260px; min-width: 0; }
+@media (min-width: 900px) {
+  .figma-store-theme .shop-toolbar { top: 0; }
+}
+/* Filters sidebar stays reachable too, sitting just under the pinned bar. */
+@media (min-width: 1024px) {
+  .figma-store-theme .shop-sidebar { top: 16px; max-height: calc(100vh - 32px); }
+}

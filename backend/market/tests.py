@@ -131,3 +131,40 @@ class AdminAndCartTests(TestCase):
     def test_cart_rejects_missing_fields(self):
         response = self.client.post("/api/cart", data='{"cartId":"t1"}', content_type="application/json")
         self.assertEqual(response.status_code, 400)
+
+
+class ProductFilterRegressionTests(TestCase):
+    """Slugs and junk in UUID-typed filters must never crash the API (they once returned HTTP 500)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.category = Category.objects.create(name="Accessories", slug="accessories")
+        self.other = Category.objects.create(name="Groceries", slug="groceries")
+        Product.objects.create(sku="ACC-1", name="Umbrella", slug="umbrella", price_rwf=2800, stock=5,
+                               is_active=True, category=self.category)
+        Product.objects.create(sku="GRO-1", name="Rice", slug="rice", price_rwf=12000, stock=5,
+                               is_active=True, category=self.other)
+
+    def test_category_filter_by_slug(self):
+        response = self.client.get("/api/products?category=accessories")
+        self.assertEqual(response.status_code, 200)
+        names = [p["name"] for p in response.json()["products"]]
+        self.assertEqual(names, ["Umbrella"])
+
+    def test_category_filter_by_uuid_still_works(self):
+        response = self.client.get(f"/api/products?category={self.category.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([p["name"] for p in response.json()["products"]], ["Umbrella"])
+
+    def test_unknown_category_returns_empty_list_not_500(self):
+        response = self.client.get("/api/products?category=does-not-exist")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["products"], [])
+
+    def test_garbage_seller_and_ids_do_not_crash(self):
+        self.assertEqual(self.client.get("/api/products?seller=not-a-uuid").status_code, 200)
+        self.assertEqual(self.client.get("/api/products?ids=abc,def").status_code, 200)
+
+    def test_invalid_uuid_lookup_elsewhere_is_a_client_error_not_500(self):
+        response = self.client.get("/api/cart?cartId=not-a-uuid")
+        self.assertLess(response.status_code, 500)

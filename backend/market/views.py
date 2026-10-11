@@ -12,6 +12,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import signing
+from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Avg, Count, Q, Sum
@@ -19,6 +20,7 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
+import logging
 
 from .models import (
     AuditLog, Cart, CartItem, Category, ContentPost, CustomerProfile,
@@ -26,6 +28,9 @@ from .models import (
     Seller, SiteSettings, StoreOrder, StoreOrderItem, SupportTicket,
     WishlistItem,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def j(data, status=200):
@@ -230,6 +235,14 @@ def settings_dto(row):
     }
 
 
+def as_uuid(value):
+    """Return a UUID for valid input, otherwise None (so slugs/garbage never hit a UUID column)."""
+    try:
+        return uuid.UUID(str(value))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 def public_products(query, include_inactive=False):
     qs = Product.objects.select_related("category", "seller").prefetch_related("images")
     if not include_inactive:
@@ -239,11 +252,13 @@ def public_products(query, include_inactive=False):
         qs = qs.filter(Q(name__icontains=term) | Q(description__icontains=term) | Q(sku__icontains=term))
     category = clean(query.get("category"), 120)
     if category:
-        qs = qs.filter(Q(category__slug=category) | Q(category_id=category))
+        category_uuid = as_uuid(category)
+        qs = qs.filter(Q(category__slug=category) | Q(category_id=category_uuid)) if category_uuid else qs.filter(category__slug=category)
     seller = clean(query.get("seller"), 120)
     if seller:
-        qs = qs.filter(Q(seller_id=seller) | Q(seller__business_name__iexact=seller))
-    ids = [value for value in clean(query.get("ids"), 2500).split(",") if value][:60]
+        seller_uuid = as_uuid(seller)
+        qs = qs.filter(Q(seller_id=seller_uuid) | Q(seller__business_name__iexact=seller)) if seller_uuid else qs.filter(seller__business_name__iexact=seller)
+    ids = [str(u) for u in (as_uuid(v) for v in clean(query.get("ids"), 2500).split(",") if v) if u][:60]
     if ids:
         qs = qs.filter(id__in=ids)
     try:
@@ -604,6 +619,17 @@ def handle_product_images(request, path):
 
 @csrf_exempt
 def api_dispatch(request, resource=""):
+    try:
+        return _api_dispatch(request, resource)
+    except (ValidationError, ValueError) as exc:
+        # Typically an invalid UUID / bad value in a lookup: treat as a bad request, not a crash.
+        return j({"error": "Invalid request value."}, 400)
+    except Exception:
+        logger.exception("Unhandled API error on %s %s", request.method, request.path)
+        return j({"error": "Something went wrong. Please try again."}, 500)
+
+
+def _api_dispatch(request, resource=""):
     path = (resource or "").strip("/")
     method = request.method.upper()
     if method not in {"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS", "HEAD"}:
