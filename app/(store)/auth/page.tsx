@@ -45,6 +45,7 @@ export default function AuthPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Google sign-in could not be completed.');
       setCustomer(data.customer);
+      window.dispatchEvent(new Event('gwizineza-auth-changed'));
       setMessage('You are signed in with Google.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Google sign-in could not be completed.');
@@ -130,6 +131,7 @@ export default function AuthPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'That code could not be verified.');
       setCustomer(data.customer);
+      window.dispatchEvent(new Event('gwizineza-auth-changed'));
       setMessage('You are signed in securely.');
       setContact('');
       setCode('');
@@ -145,6 +147,7 @@ export default function AuthPage() {
   async function signOut() {
     await fetch('/api/customer/auth/logout', { method: 'POST' }).catch(() => undefined);
     setCustomer(null);
+    window.dispatchEvent(new Event('gwizineza-auth-changed'));
     setMessage('You have signed out.');
     setLoading(false);
   }
@@ -184,6 +187,7 @@ export default function AuthPage() {
           <div className="stack">
             <div className="alert alert-success"><Icon name="check" size={16} /> {customer.name}{customer.email ? ' · ' + customer.email : customer.phone ? ' · ' + customer.phone : ''}</div>
             <ButtonLink href="/shop" size="lg" block>Continue shopping</ButtonLink>
+            <Link href="/account" className="btn btn-primary btn-block">Open my account</Link>
             <Button variant="outline" block onClick={signOut} icon="logout">Sign out</Button>
           </div>
         ) : (

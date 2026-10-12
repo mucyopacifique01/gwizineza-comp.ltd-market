@@ -24,6 +24,28 @@ export function SiteHeader({ categories, announcement }: { categories: CategoryD
   const { count, bump } = useCart();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
+  const [customerName, setCustomerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch('/api/customer/me', { credentials: 'include', cache: 'no-store' })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => { if (alive) setCustomerName(d?.customer?.name ?? null); })
+        .catch(() => { if (alive) setCustomerName(null); });
+    };
+    load();
+    window.addEventListener('gwizineza-auth-changed', load);
+    return () => { alive = false; window.removeEventListener('gwizineza-auth-changed', load); };
+  }, [pathname]);
+
+  async function signOut() {
+    await fetch('/api/customer/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+    setCustomerName(null);
+    setMenu(false);
+    window.dispatchEvent(new Event('gwizineza-auth-changed'));
+    window.location.assign('/');
+  }
 
   useEffect(() => { setMenu(false); setSearch(false); }, [pathname]);
   useEffect(() => {
@@ -61,7 +83,12 @@ export function SiteHeader({ categories, announcement }: { categories: CategoryD
         </div>
         <div className="fig-nav-actions">
           <Link href="/contact" className="fig-btn fig-btn-outline fig-hide-mobile">Post Buying Request (RFQ)</Link>
-          <Link href="/auth" className="fig-btn fig-btn-primary fig-hide-mobile">Join Free</Link>
+          {customerName
+            ? <>
+                <Link href="/account" className="fig-btn fig-btn-primary fig-hide-mobile" title="Open my account"><Icon name="user" size={16}/>&nbsp;{customerName.split(' ')[0].slice(0, 14)}</Link>
+                <button type="button" className="fig-btn fig-btn-outline fig-hide-mobile" onClick={() => void signOut()}>Sign out</button>
+              </>
+            : <Link href="/auth" className="fig-btn fig-btn-primary fig-hide-mobile">Join Free</Link>}
           <button className="fig-icon-btn fig-only-mobile" onClick={() => setMenu(true)} aria-label="Open menu"><Icon name="menu" size={22}/></button>
           <Link href="/cart" className="fig-icon-btn fig-cart-btn" aria-label={`Cart, ${count} items`}><Icon name="bag" size={21}/><span key={bump}>{count}</span></Link>
         </div>
@@ -83,7 +110,12 @@ export function SiteHeader({ categories, announcement }: { categories: CategoryD
     <Sheet open={menu} onClose={() => setMenu(false)} side="left" title="Gwizineza Marketplace">
       <nav className="drawer-nav">{NAV.map(item => <Link key={item.href} href={item.href}>{item.label}<Icon name="chevronRight" size={18}/></Link>)}</nav>
       <div className="drawer-accounts">
-        <Link href="/auth" className="btn btn-outline btn-block">Customer account</Link>
+        {customerName
+          ? <>
+              <Link href="/account" className="btn btn-outline btn-block">My account ({customerName.split(' ')[0].slice(0, 14)})</Link>
+              <button type="button" className="btn btn-ghost btn-block" onClick={() => void signOut()}>Sign out</button>
+            </>
+          : <Link href="/auth" className="btn btn-outline btn-block">Customer account</Link>}
         <Link href="/seller/login" className="btn btn-primary btn-block">Sell on Gwizineza</Link>
         <Link href="/admin/login" className="btn btn-ghost btn-block">Owner access</Link>
       </div>
