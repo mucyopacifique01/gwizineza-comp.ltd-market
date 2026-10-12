@@ -64,9 +64,10 @@ export default function AuthPage() {
       void finishGoogleLogin(accessToken);
     } else if (oauthError) {
       window.history.replaceState({}, '', window.location.pathname);
-      setError(oauthError.toLowerCase().includes('provider')
+      const lowered = oauthError.toLowerCase();
+      setError(lowered.includes('not enabled')
         ? 'Google sign-in is not set up for the store yet. Use an email or phone code instead.'
-        : 'Google sign-in did not complete. Please try again.');
+        : 'Google sign-in did not complete: ' + oauthError.replace(/\+/g, ' ').slice(0, 160));
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
