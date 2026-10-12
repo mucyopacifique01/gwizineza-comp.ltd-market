@@ -83,9 +83,14 @@ class AuthFlowTests(TestCase):
                                         data='{"contact":"+250788123456","code":"12"}', content_type="application/json")
             self.assertEqual(response.status_code, 400)
 
-    def test_google_login_is_retired_with_gone(self):
-        response = self.client.post("/api/customer/auth/google")
-        self.assertEqual(response.status_code, 410)
+    def test_google_login_endpoint_exists(self):
+        # Google sign-in is back: without a token it must fail cleanly, never 410/500.
+        response = self.client.post("/api/customer/auth/google",
+                                    data="{}",
+                                    content_type="application/json",
+                                    HTTP_ORIGIN="http://testserver",
+                                    HTTP_HOST="testserver")
+        self.assertIn(response.status_code, (400, 401, 502, 503))
 
 
 class AdminAndCartTests(TestCase):
@@ -168,3 +173,30 @@ class ProductFilterRegressionTests(TestCase):
     def test_invalid_uuid_lookup_elsewhere_is_a_client_error_not_500(self):
         response = self.client.get("/api/cart?cartId=not-a-uuid")
         self.assertLess(response.status_code, 500)
+
+
+class GoogleAuthApiTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+
+    def test_auth_config_reports_when_unconfigured(self):
+        response = self.client.get("/api/auth/config")
+        # Without Supabase env vars the endpoint degrades gracefully.
+        self.assertIn(response.status_code, (200, 503))
+
+    def test_google_login_without_token_is_rejected(self):
+        response = self.client.post("/api/customer/auth/google",
+                                    data="{}",
+                                    content_type="application/json",
+                                    HTTP_ORIGIN="http://testserver",
+                                    HTTP_HOST="testserver")
+        self.assertIn(response.status_code, (400, 401, 502, 503))
+        self.assertNotIn(b"HTML", response.content)
+
+    def test_google_login_survives_malformed_body(self):
+        response = self.client.post("/api/customer/auth/google",
+                                    data="{bad json",
+                                    content_type="application/json",
+                                    HTTP_ORIGIN="http://testserver",
+                                    HTTP_HOST="testserver")
+        self.assertIn(response.status_code, (400, 401, 502, 503))

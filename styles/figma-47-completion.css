@@ -191,3 +191,8 @@
 @media (min-width: 1024px) {
   .figma-store-theme .shop-sidebar { top: 16px; max-height: calc(100vh - 32px); }
 }
+
+
+/* Auth page: divider between the Google button and the OTP form. */
+.auth-divider{display:flex;align-items:center;gap:12px;color:var(--fig-muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;border-top:1px solid var(--fig-line)}

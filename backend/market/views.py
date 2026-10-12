@@ -352,6 +352,89 @@ def send_customer_otp(request, body):
               "message": "Verification code sent. Check your inbox or SMS messages."})
 
 
+def customer_session_response(profile):
+    """Shared sign-in response for every customer auth method (OTP or Google)."""
+    response = j({"ok": True, "customer": customer_dto(profile), "message": "You are signed in."})
+    response.set_cookie(
+        "gwizineza_customer_session",
+        signing.dumps(str(profile.id), salt="gwizineza-customer"),
+        max_age=60 * 60 * 24 * 30, httponly=True, secure=not settings.DEBUG,
+        samesite="Lax", path="/",
+    )
+    return response
+
+
+def upsert_customer_profile(user_id, verified_email="", verified_phone="", submitted_name="", metadata=None):
+    """Link a verified Supabase user to a customer profile, creating one when needed."""
+    metadata = metadata or {}
+    lookup = Q()
+    if verified_email:
+        lookup |= Q(email__iexact=verified_email)
+    if verified_phone:
+        lookup |= Q(phone=verified_phone)
+    profile = CustomerProfile.objects.filter(supabase_user_id=user_id).first()
+    if profile is None:
+        profile = CustomerProfile.objects.filter(lookup).first() if lookup else None
+    if profile is None:
+        profile = CustomerProfile(supabase_user_id=user_id)
+    profile.supabase_user_id = user_id
+    profile.email = verified_email or profile.email
+    profile.phone = verified_phone or profile.phone
+    profile.name = profile.name or submitted_name or clean(metadata.get("full_name") or metadata.get("name"), 160) or (
+        verified_email.split("@")[0] if verified_email else "Gwizineza customer"
+    )
+    profile.avatar_url = clean(metadata.get("avatar_url"), 1000) or profile.avatar_url
+    profile.save()
+    return profile
+
+
+def auth_config(request):
+    """Public auth configuration. The anon key is designed to be public (it is shipped
+    to browsers by Supabase's own SDKs); it grants no admin powers."""
+    if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+        return j({"error": "Supabase Auth is not configured on the Django service."}, 503)
+    return j({"supabaseUrl": settings.SUPABASE_URL, "anonKey": settings.SUPABASE_ANON_KEY})
+
+
+def google_customer_login(request, body):
+    """Sign in with a Supabase Google OAuth access token (from the authorize redirect)."""
+    if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+        return j({"error": "Supabase Auth is not configured on the Django service."}, 503)
+    access_token = clean(body.get("accessToken") or body.get("access_token"), 2400)
+    if not access_token:
+        return j({"error": "Sign in with Google in your browser first, then return here."}, 400)
+    try:
+        response = requests.get(
+            settings.SUPABASE_URL + "/auth/v1/user",
+            headers={"apikey": settings.SUPABASE_ANON_KEY, "Authorization": "Bearer " + access_token},
+            timeout=12,
+        )
+    except requests.RequestException:
+        return j({"error": "Could not contact Supabase Auth. Please try again."}, 502)
+    if response.status_code == 401 or response.status_code == 403:
+        return j({"error": "Your Google sign-in expired. Please try again."}, 401)
+    if response.status_code >= 400:
+        return j({"error": "Google sign-in could not be completed. Please try again."}, 502)
+    try:
+        user = (response.json() or {}).get("user") or {}
+    except ValueError:
+        return j({"error": "Supabase Auth returned an invalid response."}, 502)
+    user_id = clean(user.get("id"), 80)
+    if not user_id:
+        return j({"error": "Supabase did not return a verified account."}, 502)
+    metadata = user.get("user_metadata") or {}
+    verified_email = clean(user.get("email"), 180).lower()
+    verified_phone = clean(user.get("phone"), 30)
+    if not verified_email and not verified_phone:
+        return j({"error": "Your Google account has no email address to sign in with."}, 400)
+    try:
+        profile = upsert_customer_profile(user_id, verified_email, verified_phone,
+                                          clean(body.get("name"), 160), metadata)
+    except IntegrityError:
+        return j({"error": "Could not link this Google account to a customer profile. Contact support."}, 409)
+    return customer_session_response(profile)
+
+
 def verify_customer_otp(request, body):
     kind, value = normalize_contact(body.get("contact") or body.get("email") or body.get("phone"))
     code = re.sub(r"\s+", "", clean(body.get("code") or body.get("token") or body.get("otp"), 12))
@@ -383,35 +466,10 @@ def verify_customer_otp(request, body):
     verified_email = clean(user.get("email"), 180).lower() or (value if kind == "email" else "")
     verified_phone = clean(user.get("phone"), 30) or (value if kind == "phone" else "")
     try:
-        profile = CustomerProfile.objects.filter(supabase_user_id=user_id).first()
-        if profile is None:
-            lookup = Q()
-            if verified_email:
-                lookup |= Q(email__iexact=verified_email)
-            if verified_phone:
-                lookup |= Q(phone=verified_phone)
-            profile = CustomerProfile.objects.filter(lookup).first() if lookup else None
-        if profile is None:
-            profile = CustomerProfile(supabase_user_id=user_id)
-        profile.supabase_user_id = user_id
-        profile.email = verified_email or profile.email
-        profile.phone = verified_phone or profile.phone
-        profile.name = profile.name or submitted_name or clean(metadata.get("full_name") or metadata.get("name"), 160) or (
-            verified_email.split("@")[0] if verified_email else "Gwizineza customer"
-        )
-        profile.avatar_url = clean(metadata.get("avatar_url"), 1000) or profile.avatar_url
-        profile.save()
+        profile = upsert_customer_profile(user_id, verified_email, verified_phone, submitted_name, metadata)
     except IntegrityError:
         return j({"error": "Could not link this Supabase account to a customer profile. Contact support."}, 409)
-
-    response = j({"ok": True, "customer": customer_dto(profile), "message": "You are signed in."})
-    response.set_cookie(
-        "gwizineza_customer_session",
-        signing.dumps(str(profile.id), salt="gwizineza-customer"),
-        max_age=60 * 60 * 24 * 30, httponly=True, secure=not settings.DEBUG,
-        samesite="Lax", path="/",
-    )
-    return response
+    return customer_session_response(profile)
 
 
 def send_textbee_hook(request):
@@ -654,8 +712,11 @@ def _api_dispatch(request, resource=""):
                   "database": "Supabase PostgreSQL", "databaseStatus": db_status,
                   "time": iso(timezone.now())}, 200)
 
-    if path in {"auth/send-sms-hook"} and method == "POST":
+    if path == "auth/send-sms-hook" and method == "POST":
         return send_textbee_hook(request)
+
+    if path == "auth/config" and method in {"GET", "HEAD"}:
+        return auth_config(request)
 
     if path in {"customer/auth/otp/send", "customer/auth/register", "customer/auth/login"} and method == "POST":
         # Preserve whether the user chose sign-up or sign-in.
@@ -666,8 +727,8 @@ def _api_dispatch(request, resource=""):
         return send_customer_otp(request, body)
     if path in {"customer/auth/otp/verify", "customer/auth/verify"} and method == "POST":
         return verify_customer_otp(request, body)
-    if path.startswith("customer/auth/google"):
-        return j({"error": "Google login has been replaced by email or phone OTP sign-in."}, 410)
+    if path == "customer/auth/google" and method == "POST":
+        return google_customer_login(request, body)
     if path == "customer/auth/logout" and method == "POST":
         response = j({"ok": True})
         response.delete_cookie("gwizineza_customer_session", path="/", samesite="Lax")
