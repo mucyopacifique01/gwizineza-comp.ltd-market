@@ -200,3 +200,44 @@ class GoogleAuthApiTests(TestCase):
                                     HTTP_ORIGIN="http://testserver",
                                     HTTP_HOST="testserver")
         self.assertIn(response.status_code, (400, 401, 502, 503))
+
+
+class GoogleLoginSuccessTests(TestCase):
+    """Regression: Supabase /auth/v1/user returns the user at the top level (no 'user' wrapper)."""
+
+    def _login(self, payload):
+        from unittest import mock
+        from django.test import override_settings
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self_inner):
+                return payload
+
+        with override_settings(SUPABASE_URL="https://example.supabase.co", SUPABASE_ANON_KEY="anon"):
+            with mock.patch("market.views.requests.get", return_value=FakeResponse()):
+                return self.client.post(
+                    "/api/customer/auth/google",
+                    data='{"accessToken": "tok"}',
+                    content_type="application/json",
+                    HTTP_ORIGIN="http://testserver",
+                    HTTP_HOST="testserver",
+                )
+
+    def test_top_level_user_object_signs_in(self):
+        response = self._login({
+            "id": "11111111-1111-1111-1111-111111111111",
+            "email": "Buyer@Example.com",
+            "user_metadata": {"full_name": "Test Buyer"},
+        })
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["customer"]["email"], "buyer@example.com")
+
+    def test_wrapped_user_object_still_signs_in(self):
+        response = self._login({"user": {"id": "22222222-2222-2222-2222-222222222222", "email": "wrapped@example.com"}})
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_missing_id_is_rejected(self):
+        response = self._login({"email": "x@example.com"})
+        self.assertEqual(response.status_code, 502)

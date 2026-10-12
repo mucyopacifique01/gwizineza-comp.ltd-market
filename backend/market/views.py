@@ -416,9 +416,11 @@ def google_customer_login(request, body):
     if response.status_code >= 400:
         return j({"error": "Google sign-in could not be completed. Please try again."}, 502)
     try:
-        user = (response.json() or {}).get("user") or {}
+        result = response.json() or {}
     except ValueError:
         return j({"error": "Supabase Auth returned an invalid response."}, 502)
+    # GET /auth/v1/user returns the user object itself; tolerate a {"user": {...}} wrapper too.
+    user = result.get("user") if isinstance(result.get("user"), dict) else result
     user_id = clean(user.get("id"), 80)
     if not user_id:
         return j({"error": "Supabase did not return a verified account."}, 502)
