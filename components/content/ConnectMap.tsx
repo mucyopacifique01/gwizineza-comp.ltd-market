@@ -40,7 +40,7 @@ export function ConnectMap() {
     ? `${place.lat},${place.lng}`
     : info?.pin?.lat != null && info?.pin?.lng != null
       ? `${info.pin.lat},${info.pin.lng}`
-      : query;
+      : `${site.map.lat},${site.map.lng}`; // saved town pin until the API answers
   const embedSrc = `https://www.google.com/maps?q=${target}&z=15&hl=en&output=embed`;
   const openInMaps = `https://www.google.com/maps/search/?api=1&query=${target}`;
   const directions = `https://www.google.com/maps/dir/?api=1&destination=${target}`;
