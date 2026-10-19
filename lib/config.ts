@@ -18,7 +18,7 @@ export const site = {
     x: process.env.NEXT_PUBLIC_X_URL ?? '',
   },
   /** Approximate public area pin (town centre). Already published by the previous site. */
-  map: { lat: -2.0127, lng: 30.5585 },
+  map: { lat: -2.0126875, lng: 30.558234375 }, // XHP5+W7H Kabarondo (owner-provided plus code),
   /** When a real EBM integration exists server-side, set NEXT_PUBLIC_EBM_ENABLED=true. */
   ebmEnabled: process.env.NEXT_PUBLIC_EBM_ENABLED === 'true',
 };

@@ -1032,9 +1032,13 @@ def _api_dispatch(request, resource=""):
                     cached = {"place": place, "pin": pin}
                     cache.set(MAP_CACHE_KEY, cached, 60 * 60 * 12)
         cached = cached or {}
-        place, pin = cached.get("place"), cached.get("pin")
+        place = cached.get("place")
+        # Coordinates the owner configured (Admin > Settings) win over
+        # the town pin from SerpApi, so the map shows the exact spot.
         if row.map_lat is not None and row.map_lng is not None:
-            pin = pin or {"lat": row.map_lat, "lng": row.map_lng}
+            pin = {"lat": row.map_lat, "lng": row.map_lng}
+        else:
+            pin = cached.get("pin")
         source = "serpapi" if place else "fallback"
         return j({"place": place, "pin": pin, "fallback": fallback, "source": source})
 
