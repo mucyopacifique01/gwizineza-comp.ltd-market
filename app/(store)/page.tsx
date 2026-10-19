@@ -4,6 +4,7 @@ import { Hero } from '@/components/home/Hero';
 import { HeroSlider } from '@/components/home/HeroSlider';
 import { getHeroSlides } from '@/lib/site-settings';
 import { FigmaHomeSections } from '@/components/home/FigmaSections';
+import { ConnectMap } from '@/components/content/ConnectMap';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,5 +23,6 @@ export default async function HomePage() {
     <HeroSlider slides={slides} />
     <Hero main={home.heroMain} secondary={home.heroSecondary} stats={{ products: products.length, sellers: sellers.length, categories: categories.length }} />
     <FigmaHomeSections products={products} best={best} categories={categories} />
+      <ConnectMap />
   </>;
 }
