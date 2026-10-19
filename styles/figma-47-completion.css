@@ -192,7 +192,6 @@
   .figma-store-theme .shop-sidebar { top: 16px; max-height: calc(100vh - 32px); }
 }
 
-
 /* Auth page: divider between the Google button and the OTP form. */
 .auth-divider{display:flex;align-items:center;gap:12px;color:var(--fig-muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .auth-divider::before,.auth-divider::after{content:"";flex:1;border-top:1px solid var(--fig-line)}
@@ -274,10 +273,10 @@
 .figma-store-theme .hs-cap strong { font: 800 clamp(18px, 2.4vw, 30px)/1.15 var(--font-bricolage), Outfit, sans-serif; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
 .figma-store-theme .hs-cap span { max-width: 58ch; color: #dbe7ee; font-size: clamp(13px, 1.3vw, 16px); }
 .figma-store-theme .hs-cap .btn { margin-top: 6px; }
-.figma-store-theme .hs-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .28); background: rgba(8, 18, 26, .62); color: #fff; cursor: pointer; backdrop-filter: blur(6px); transition: background .2s, opacity .2s; }
-.figma-store-theme .hs-arrow:hover { background: var(--fig-teal); color: #0f1923; }
-.figma-store-theme .hs-prev { left: 14px; }
-.figma-store-theme .hs-next { right: 14px; }
+.figma-store-theme 
+.figma-store-theme 
+.figma-store-theme 
+.figma-store-theme 
 .figma-store-theme .hs-dots { position: absolute; right: 22px; bottom: 20px; display: flex; gap: 7px; }
 .figma-store-theme .hs-dots button { width: 9px; height: 9px; padding: 0; border-radius: 99px; border: 0; background: rgba(255, 255, 255, .5); cursor: pointer; transition: width .25s, background .25s; }
 .figma-store-theme .hs-dots button.is-active { width: 26px; background: var(--fig-teal); }
@@ -287,9 +286,9 @@
   .figma-store-theme .hs-frame { aspect-ratio: 16 / 10; border-radius: 14px; }
   .figma-store-theme .hs-cap { padding: 40px 16px 34px; }
   .figma-store-theme .hs-cap span { display: none; }
-  .figma-store-theme .hs-arrow { width: 36px; height: 36px; }
-  .figma-store-theme .hs-prev { left: 8px; }
-  .figma-store-theme .hs-next { right: 8px; }
+  .figma-store-theme 
+  .figma-store-theme 
+  .figma-store-theme 
   .figma-store-theme .hs-dots { right: 50%; transform: translateX(50%); bottom: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .figma-store-theme .hs-track { transition: none; } }

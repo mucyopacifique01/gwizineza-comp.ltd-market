@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import type { HeroSlideDTO } from '@/lib/site-settings';
 
-const INTERVAL_MS = 5500;
+const INTERVAL_MS = 10000;
 
 /** Sliding banner for the homepage. Slides are managed by the owner in Admin → Homepage slider. */
 export function HeroSlider({ slides }: { slides: HeroSlideDTO[] }) {
@@ -86,8 +86,6 @@ export function HeroSlider({ slides }: { slides: HeroSlideDTO[] }) {
 
           {count > 1 && (
             <>
-              <button type="button" className="hs-arrow hs-prev" onClick={() => go(index - 1)} aria-label="Previous slide"><Icon name="chevronLeft" size={22} /></button>
-              <button type="button" className="hs-arrow hs-next" onClick={() => go(index + 1)} aria-label="Next slide"><Icon name="chevronRight" size={22} /></button>
               <div className="hs-dots" role="tablist" aria-label="Choose slide">
                 {slides.map((slide, i) => (
                   <button key={slide.id} type="button" role="tab" aria-selected={i === index} aria-label={`Go to slide ${i + 1}`} className={i === index ? 'is-active' : ''} onClick={() => go(i)} />
