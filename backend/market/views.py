@@ -998,7 +998,8 @@ def _api_dispatch(request, resource=""):
     
     if path == "map/place" and method == "GET":
         row, _ = SiteSettings.objects.get_or_create(key="site")
-        fallback = {"name": row.site_name, "address": f"{row.location}, Rwanda"}
+        loc = row.location if "rwanda" in row.location.lower() else f"{row.location}, Rwanda"
+        fallback = {"name": row.site_name, "address": loc}
         place = cache.get(MAP_CACHE_KEY)
         if place is None:
             api_key = serpapi_key()
