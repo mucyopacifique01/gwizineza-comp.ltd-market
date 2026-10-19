@@ -263,3 +263,37 @@
   .figma-store-theme .acct-lines li .acct-line-total { grid-column: 3; grid-row: 1; min-width: 0; }
   .figma-store-theme .acct-lines li .acct-remove { grid-column: 3; grid-row: 2; justify-self: end; }
 }
+
+/* ---- Homepage sliding banner ---- */
+.figma-store-theme .hs { padding: 18px 0 6px; }
+.figma-store-theme .hs-frame { position: relative; overflow: hidden; border-radius: 18px; border: 1px solid var(--fig-line); background: var(--fig-panel); aspect-ratio: 16 / 7; box-shadow: 0 24px 60px -34px #000; }
+.figma-store-theme .hs-track { display: flex; height: 100%; transition: transform .7s cubic-bezier(.22, .8, .24, 1); will-change: transform; }
+.figma-store-theme .hs-slide { position: relative; flex: 0 0 100%; height: 100%; margin: 0; }
+.figma-store-theme .hs-slide img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; }
+.figma-store-theme .hs-cap { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 54px 28px 22px; background: linear-gradient(to top, rgba(6, 14, 20, .88), rgba(6, 14, 20, .55) 55%, transparent); color: #fff; }
+.figma-store-theme .hs-cap strong { font: 800 clamp(18px, 2.4vw, 30px)/1.15 var(--font-bricolage), Outfit, sans-serif; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.figma-store-theme .hs-cap span { max-width: 58ch; color: #dbe7ee; font-size: clamp(13px, 1.3vw, 16px); }
+.figma-store-theme .hs-cap .btn { margin-top: 6px; }
+.figma-store-theme .hs-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .28); background: rgba(8, 18, 26, .62); color: #fff; cursor: pointer; backdrop-filter: blur(6px); transition: background .2s, opacity .2s; }
+.figma-store-theme .hs-arrow:hover { background: var(--fig-teal); color: #0f1923; }
+.figma-store-theme .hs-prev { left: 14px; }
+.figma-store-theme .hs-next { right: 14px; }
+.figma-store-theme .hs-dots { position: absolute; right: 22px; bottom: 20px; display: flex; gap: 7px; }
+.figma-store-theme .hs-dots button { width: 9px; height: 9px; padding: 0; border-radius: 99px; border: 0; background: rgba(255, 255, 255, .5); cursor: pointer; transition: width .25s, background .25s; }
+.figma-store-theme .hs-dots button.is-active { width: 26px; background: var(--fig-teal); }
+.figma-store-theme .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 760px) {
+  .figma-store-theme .hs { padding-top: 12px; }
+  .figma-store-theme .hs-frame { aspect-ratio: 16 / 10; border-radius: 14px; }
+  .figma-store-theme .hs-cap { padding: 40px 16px 34px; }
+  .figma-store-theme .hs-cap span { display: none; }
+  .figma-store-theme .hs-arrow { width: 36px; height: 36px; }
+  .figma-store-theme .hs-prev { left: 8px; }
+  .figma-store-theme .hs-next { right: 8px; }
+  .figma-store-theme .hs-dots { right: 50%; transform: translateX(50%); bottom: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .figma-store-theme .hs-track { transition: none; } }
+
+/* ---- Brand logo image ---- */
+.figma-store-theme .fig-logo-img, .fig-logo-img { object-fit: contain; display: block; flex: none; }
+.figma-store-theme .fig-logo { display: inline-flex; align-items: center; gap: 10px; }

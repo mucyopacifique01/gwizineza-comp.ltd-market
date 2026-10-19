@@ -24,8 +24,8 @@ import logging
 
 from .models import (
     AuditLog, Cart, CartItem, Category, ContentPost, CustomerProfile,
-    DeliveryZone, PaymentRecord, Product, ProductImage, ProductReview,
-    Seller, SiteSettings, StoreOrder, StoreOrderItem, SupportTicket,
+    DeliveryZone, HeroSlide, PaymentRecord, Product, ProductImage, ProductReview,
+    Seller, SiteAsset, SiteSettings, StoreOrder, StoreOrderItem, SupportTicket,
     WishlistItem,
 )
 
@@ -233,6 +233,74 @@ def settings_dto(row):
         "mapLat": row.map_lat, "mapLng": row.map_lng,
         "createdAt": iso(row.created_at), "updatedAt": iso(row.updated_at),
     }
+
+
+# ---- Homepage slider + brand logos (owner-editable) -------------------------------
+DEFAULT_SLIDES = [
+    ("slide_01-hero-logo.jpg", "Gwizineza Trading Company", "Quality products, fair prices, a brighter future.", "Shop now", "/shop", "Gwizineza Trading Company logo over the Kabarondo hills at sunrise"),
+    ("slide_02-who-we-are.jpg", "Who we are", "A Rwandan trading company serving local and international markets.", "About us", "/about", "A Gwizineza team member in a green polo inside a warehouse"),
+    ("slide_03-our-products.jpg", "Our products", "Food items, household goods, agricultural products and more.", "Browse products", "/shop", "Food products, bananas, rice and sugar cane"),
+    ("slide_04-why-choose-us.jpg", "Why choose us", "Reliable delivery, competitive prices and guaranteed quality.", "See how we deliver", "/shipping", "A Gwizineza delivery truck on a hillside road"),
+    ("slide_05-lets-trade-together.jpg", "Let's trade together", "Your trusted trading partner.", "Contact us", "/contact", "A business handshake"),
+    ("slide_06-kabarondo-rwanda.jpg", "Proudly from Kabarondo, Rwanda", "Quality today, prosperity tomorrow.", "Find us", "/contact", "Gwizineza logo over the Rwandan landscape at sunrise"),
+    ("slide_07-product-range.jpg", "A wide range of products", "Food, household goods, electronics and agricultural products.", "Shop all", "/shop", "Food, household, electronics and agricultural products"),
+    ("slide_08-sourcing-delivery.jpg", "Safe, reliable, timely delivery", "We source high-quality products and deliver them with care.", "Delivery info", "/shipping", "A Gwizineza team member packing a delivery box"),
+    ("slide_09-from-our-store.jpg", "From our store to your hands", "We make trading easier for you.", "Start shopping", "/shop", "A smiling customer holding a Gwizineza parcel"),
+    ("slide_10-choose-gwizineza.jpg", "Choose Gwizineza", "Quality, trust and growth.", "Let's trade together", "/contact", "Choose Gwizineza Trading Company"),
+]
+DEFAULT_LOGOS = {
+    "logo": "/brand/logo-mark-on-dark.png",
+    "logo_light": "/brand/logo-mark-on-light.png",
+}
+
+
+def ensure_default_slides():
+    """Seed the starter slider once. If the owner later deletes every slide it stays empty."""
+    marker, created = SiteAsset.objects.get_or_create(key="slides_seeded", defaults={"url": "1"})
+    if not created:
+        return
+    if HeroSlide.objects.exists():
+        return
+    HeroSlide.objects.bulk_create([
+        HeroSlide(image_url="/brand/slides/" + f, title=t, subtitle=sub, link_label=label, link_url=link,
+                  alt_text=alt, sort_order=i, is_active=True)
+        for i, (f, t, sub, label, link, alt) in enumerate(DEFAULT_SLIDES)
+    ])
+
+
+def slide_dto(slide):
+    return {
+        "id": str(slide.id), "imageUrl": slide.image_url, "title": slide.title, "subtitle": slide.subtitle,
+        "linkUrl": slide.link_url, "linkLabel": slide.link_label, "altText": slide.alt_text,
+        "sortOrder": slide.sort_order, "isActive": slide.is_active,
+        "createdAt": iso(slide.created_at), "updatedAt": iso(slide.updated_at),
+    }
+
+
+def safe_link(value):
+    """Only same-site paths or http(s) URLs may be used as slide links."""
+    value = clean(value, 500)
+    if not value:
+        return ""
+    if value.startswith("/") and not value.startswith("//"):
+        return value
+    if re.match(r"^https?://", value, re.I):
+        return value
+    return None
+
+
+def safe_image_url(value):
+    value = clean(value, 1000)
+    if value.startswith("/") and not value.startswith("//"):
+        return value
+    if re.match(r"^https://", value, re.I):
+        return value
+    return None
+
+
+def logo_payload():
+    rows = {a.key: a.url for a in SiteAsset.objects.filter(key__in=DEFAULT_LOGOS.keys())}
+    return {k: (rows.get(k) or default) for k, default in DEFAULT_LOGOS.items()}
 
 
 def as_uuid(value):
@@ -801,6 +869,95 @@ def _api_dispatch(request, resource=""):
         response = j({"ok": True})
         response.delete_cookie("gwizineza_seller_session", path="/", samesite="Lax")
         return response
+
+    if path == "site/slides" and method == "GET":
+        ensure_default_slides()
+        return j({"slides": [slide_dto(x) for x in HeroSlide.objects.filter(is_active=True)]})
+
+    if path == "site/logo" and method == "GET":
+        return j({"logo": logo_payload()})
+
+    if path == "admin/slides" or path.startswith("admin/slides/") or path == "admin/logo":
+        blocked = require_admin(request)
+        if blocked:
+            return blocked
+        if path == "admin/logo":
+            if method == "GET":
+                return j({"logo": logo_payload(), "defaults": DEFAULT_LOGOS})
+            if method == "PATCH":
+                for key in DEFAULT_LOGOS:
+                    if key in body:
+                        raw = body.get(key)
+                        if raw in (None, ""):
+                            SiteAsset.objects.filter(key=key).delete()   # reset to the built-in logo
+                            continue
+                        url = safe_image_url(raw)
+                        if not url:
+                            return j({"error": "Logo must be an uploaded image or an https:// image link."}, 400)
+                        SiteAsset.objects.update_or_create(key=key, defaults={"url": url})
+                return j({"ok": True, "logo": logo_payload()})
+            return j({"error": "Method not allowed"}, 405)
+        ensure_default_slides()
+        parts = path.split("/")
+        if len(parts) == 2:   # admin/slides
+            if method == "GET":
+                return j({"slides": [slide_dto(x) for x in HeroSlide.objects.all()]})
+            if method == "POST":
+                image = safe_image_url(body.get("imageUrl"))
+                if not image:
+                    return j({"error": "Upload an image (or paste an https:// image link) for the slide."}, 400)
+                link = safe_link(body.get("linkUrl"))
+                if link is None:
+                    return j({"error": "Link must start with / or https://"}, 400)
+                if HeroSlide.objects.count() >= 30:
+                    return j({"error": "You can have at most 30 slides."}, 409)
+                last = HeroSlide.objects.order_by("-sort_order").first()
+                slide = HeroSlide.objects.create(
+                    image_url=image, title=clean(body.get("title"), 160), subtitle=clean(body.get("subtitle"), 300),
+                    link_url=link, link_label=clean(body.get("linkLabel"), 60), alt_text=clean(body.get("altText"), 240),
+                    sort_order=(last.sort_order + 1) if last else 0, is_active=body.get("isActive") is not False,
+                )
+                return j({"slide": slide_dto(slide)}, 201)
+            if method == "PUT":     # reorder: {"order": [id, id, ...]}
+                order = body.get("order")
+                if not isinstance(order, list):
+                    return j({"error": "order must be a list of slide ids."}, 400)
+                ids = [str(as_uuid(x)) for x in order if as_uuid(x)]
+                existing = {str(x.id): x for x in HeroSlide.objects.all()}
+                for position, slide_id in enumerate(ids):
+                    if slide_id in existing and existing[slide_id].sort_order != position:
+                        HeroSlide.objects.filter(id=slide_id).update(sort_order=position)
+                return j({"slides": [slide_dto(x) for x in HeroSlide.objects.all()]})
+            return j({"error": "Method not allowed"}, 405)
+        if len(parts) == 3:   # admin/slides/<id>
+            slide_id = as_uuid(parts[2])
+            slide = HeroSlide.objects.filter(id=slide_id).first() if slide_id else None
+            if not slide:
+                return j({"error": "Slide not found"}, 404)
+            if method == "PATCH":
+                if "imageUrl" in body:
+                    image = safe_image_url(body.get("imageUrl"))
+                    if not image:
+                        return j({"error": "Upload an image (or paste an https:// image link)."}, 400)
+                    slide.image_url = image
+                if "linkUrl" in body:
+                    link = safe_link(body.get("linkUrl"))
+                    if link is None:
+                        return j({"error": "Link must start with / or https://"}, 400)
+                    slide.link_url = link
+                for key, field, limit in [("title", "title", 160), ("subtitle", "subtitle", 300),
+                                          ("linkLabel", "link_label", 60), ("altText", "alt_text", 240)]:
+                    if key in body:
+                        setattr(slide, field, clean(body.get(key), limit))
+                if "isActive" in body:
+                    slide.is_active = bool(body.get("isActive"))
+                slide.save()
+                return j({"slide": slide_dto(slide)})
+            if method == "DELETE":
+                slide.delete()
+                return j({"ok": True})
+            return j({"error": "Method not allowed"}, 405)
+        return j({"error": "Not found"}, 404)
 
     if path == "site/settings" and method == "GET":
         row, _ = SiteSettings.objects.get_or_create(key="site", defaults={

@@ -11,6 +11,7 @@ const NAV: DashNavItem[] = [
   { href: '/admin/customers', label: 'Users', icon: 'users' },
   { href: '/admin/analytics', label: 'Analytics', icon: 'chart' },
   { href: '/admin/finance', label: 'Finance', icon: 'money' },
+  { href: '/admin/slider', label: 'Homepage slider & logo', icon: 'layers' },
   { href: '/admin/content', label: 'CMS', icon: 'layers' },
   { href: '/admin/support', label: 'Support tickets', icon: 'users' },
   { href: '/admin/settings', label: 'Settings', icon: 'settings' },

@@ -1,13 +1,16 @@
 import { ensureStarterCatalog, getBestSellers, getCategories, getProducts, getPublicSellers, safeCatalog } from '@/lib/catalog';
 import { composeHomepage } from '@/lib/merchandising';
 import { Hero } from '@/components/home/Hero';
+import { HeroSlider } from '@/components/home/HeroSlider';
+import { getHeroSlides } from '@/lib/site-settings';
 import { FigmaHomeSections } from '@/components/home/FigmaSections';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   await safeCatalog('ensure-starter', undefined, ensureStarterCatalog);
-  const [{ products }, best, categories, sellers] = await Promise.all([
+  const [slides, { products }, best, categories, sellers] = await Promise.all([
+    getHeroSlides(),
     safeCatalog('products', { products: [], total: 0, page: 1, pageSize: 0 } as Awaited<ReturnType<typeof getProducts>>, () => getProducts({ sort: 'newest', pageSize: 60 })),
     safeCatalog('best-sellers', [] as Awaited<ReturnType<typeof getBestSellers>>, () => getBestSellers(6)),
     safeCatalog('categories', [] as Awaited<ReturnType<typeof getCategories>>, getCategories),
@@ -16,6 +19,7 @@ export default async function HomePage() {
   const home = composeHomepage(products, best);
 
   return <>
+    <HeroSlider slides={slides} />
     <Hero main={home.heroMain} secondary={home.heroSecondary} stats={{ products: products.length, sellers: sellers.length, categories: categories.length }} />
     <FigmaHomeSections products={products} best={best} categories={categories} />
   </>;

@@ -119,3 +119,26 @@
 .auth-screen-box { width: min(420px, 100%); display: flex; flex-direction: column; gap: 12px; }
 .auth-screen-box h1 { font-size: var(--fs-3xl); margin-top: 20px; }
 .auth-screen-box > p { margin-bottom: 12px; }
+
+/* ---- Admin: homepage slider & logo ---- */
+.slider-admin { display: flex; flex-direction: column; gap: 20px; }
+.slider-admin .dash-card { padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.slider-admin h2 { margin: 0; font-size: 18px; }
+.slider-logos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.slider-logo { display: flex; flex-direction: column; gap: 10px; }
+.slider-logo-preview { height: 140px; border-radius: 12px; border: 1px solid var(--line, #243642); display: grid; place-items: center; }
+.slider-logo-preview img { max-height: 104px; max-width: 80%; object-fit: contain; }
+.slider-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.slider-card { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; padding: 16px; border: 1px solid var(--line, #243642); border-radius: 14px; }
+.slider-card.is-hidden { opacity: .72; }
+.slider-thumb { position: relative; align-self: start; border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 7; background: #0b1017; }
+.slider-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.slider-badge { position: absolute; left: 8px; top: 8px; min-width: 26px; height: 26px; padding: 0 8px; display: grid; place-items: center; border-radius: 99px; background: rgba(8, 18, 26, .8); color: #fff; font-weight: 800; font-size: 12px; }
+.slider-hidden-tag { position: absolute; right: 8px; top: 8px; padding: 3px 9px; border-radius: 99px; background: #f3c65b; color: #0f1923; font-weight: 800; font-size: 11px; }
+.slider-fields { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.slider-two { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; }
+.slider-actions { align-items: center; }
+@media (max-width: 900px) {
+  .slider-card { grid-template-columns: minmax(0, 1fr); }
+  .slider-logos, .slider-two { grid-template-columns: minmax(0, 1fr); }
+}

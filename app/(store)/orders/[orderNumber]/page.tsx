@@ -44,7 +44,7 @@ export default async function OrderPage({ params, searchParams }: { params: { or
       <div className="order-layout">
         <article className="receipt card" aria-labelledby="receipt-title">
           <header className="receipt-head">
-            <div className="row"><LogoMark size={40} /><div><strong className="receipt-brand">GWIZINEZA MARKET</strong><div className="muted tiny">{site.location}</div></div></div>
+            <div className="row"><LogoMark size={40} onLight /><div><strong className="receipt-brand">GWIZINEZA MARKET</strong><div className="muted tiny">{site.location}</div></div></div>
             <div className="receipt-id"><span className="muted tiny">Order number</span><strong id="receipt-title" className="mono">{order.orderNumber}</strong></div>
           </header>
 

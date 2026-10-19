@@ -241,3 +241,118 @@ class GoogleLoginSuccessTests(TestCase):
     def test_missing_id_is_rejected(self):
         response = self._login({"email": "x@example.com"})
         self.assertEqual(response.status_code, 502)
+
+
+class HeroSliderAndLogoTests(TestCase):
+    """Owner-editable homepage slider and brand logo."""
+
+    def setUp(self):
+        self.client = Client()
+        self.H = {"HTTP_HOST": "testserver", "HTTP_ORIGIN": "http://testserver"}
+
+    def _admin(self):
+        with self.settings(ADMIN_PASSWORD="owner-secret"):
+            r = self.client.post("/api/admin/login", data='{"password":"owner-secret"}',
+                                 content_type="application/json", **self.H)
+        self.assertEqual(r.status_code, 200)
+
+    def _send(self, method, url, data=None):
+        import json as _json
+        if method == "get":
+            return self.client.get(url, **self.H)
+        return getattr(self.client, method)(url, data=_json.dumps(data if data is not None else {}),
+                                            content_type="application/json", **self.H)
+
+    # ---- public ----
+    def test_public_slides_are_seeded_with_the_ten_brand_images(self):
+        r = self.client.get("/api/site/slides")
+        self.assertEqual(r.status_code, 200)
+        slides = r.json()["slides"]
+        self.assertEqual(len(slides), 10)
+        self.assertTrue(all(s["imageUrl"].startswith("/brand/slides/") for s in slides))
+        self.assertEqual([s["sortOrder"] for s in slides], list(range(10)))
+
+    def test_seeding_happens_only_once(self):
+        self._admin()
+        self.client.get("/api/site/slides")
+        for s in self._send("get", "/api/admin/slides").json()["slides"]:
+            self._send("delete", "/api/admin/slides/" + s["id"])
+        self.assertEqual(self.client.get("/api/site/slides").json()["slides"], [])  # stays empty after owner deletes all
+
+    def test_public_slides_hide_inactive(self):
+        self._admin()
+        first = self._send("get", "/api/admin/slides").json()["slides"][0]
+        self._send("patch", "/api/admin/slides/" + first["id"], {"isActive": False})
+        ids = [s["id"] for s in self.client.get("/api/site/slides").json()["slides"]]
+        self.assertNotIn(first["id"], ids)
+        self.assertEqual(len(ids), 9)
+
+    # ---- admin auth ----
+    def test_admin_endpoints_require_login(self):
+        for method, url in [("get", "/api/admin/slides"), ("post", "/api/admin/slides"), ("put", "/api/admin/slides"),
+                            ("patch", "/api/admin/slides/00000000-0000-0000-0000-000000000000"),
+                            ("delete", "/api/admin/slides/00000000-0000-0000-0000-000000000000"),
+                            ("get", "/api/admin/logo"), ("patch", "/api/admin/logo")]:
+            self.assertEqual(self._send(method, url).status_code, 401, method + " " + url)
+
+    # ---- admin CRUD ----
+    def test_create_edit_delete_slide(self):
+        self._admin()
+        r = self._send("post", "/api/admin/slides", {"imageUrl": "https://x.supabase.co/a.jpg", "title": "Hello",
+                                                     "linkUrl": "/shop", "linkLabel": "Go"})
+        self.assertEqual(r.status_code, 201, r.content)
+        sid = r.json()["slide"]["id"]
+        self.assertEqual(r.json()["slide"]["sortOrder"], 10)           # appended after the 10 seeded slides
+        r = self._send("patch", "/api/admin/slides/" + sid, {"title": "Renamed", "subtitle": "Sub", "isActive": False})
+        self.assertEqual(r.json()["slide"]["title"], "Renamed")
+        self.assertFalse(r.json()["slide"]["isActive"])
+        self.assertEqual(self._send("delete", "/api/admin/slides/" + sid).status_code, 200)
+        self.assertEqual(self._send("delete", "/api/admin/slides/" + sid).status_code, 404)
+
+    def test_reorder_slides(self):
+        self._admin()
+        ids = [s["id"] for s in self._send("get", "/api/admin/slides").json()["slides"]]
+        reversed_ids = list(reversed(ids))
+        r = self._send("put", "/api/admin/slides", {"order": reversed_ids})
+        self.assertEqual([s["id"] for s in r.json()["slides"]], reversed_ids)
+        self.assertEqual([s["id"] for s in self.client.get("/api/site/slides").json()["slides"]], reversed_ids)
+
+    def test_validation_rejects_unsafe_input(self):
+        self._admin()
+        bad = [
+            {"imageUrl": ""},
+            {"imageUrl": "javascript:alert(1)"},
+            {"imageUrl": "http://insecure.example/a.jpg"},      # http images blocked (mixed content)
+            {"imageUrl": "//evil.example/a.jpg"},
+            {"imageUrl": "https://ok.example/a.jpg", "linkUrl": "javascript:alert(1)"},
+            {"imageUrl": "https://ok.example/a.jpg", "linkUrl": "//evil.example"},
+        ]
+        for payload in bad:
+            self.assertEqual(self._send("post", "/api/admin/slides", payload).status_code, 400, payload)
+
+    def test_slide_limit(self):
+        self._admin()
+        for i in range(20):
+            self.assertEqual(self._send("post", "/api/admin/slides", {"imageUrl": "https://ok.example/%d.jpg" % i}).status_code, 201)
+        self.assertEqual(self._send("post", "/api/admin/slides", {"imageUrl": "https://ok.example/over.jpg"}).status_code, 409)
+
+    def test_unknown_or_garbage_slide_id_is_404_not_500(self):
+        self._admin()
+        for bad_id in ("not-a-uuid", "00000000-0000-0000-0000-000000000000"):
+            self.assertEqual(self._send("patch", "/api/admin/slides/" + bad_id, {"title": "x"}).status_code, 404)
+
+    # ---- logo ----
+    def test_logo_defaults_override_and_reset(self):
+        defaults = self.client.get("/api/site/logo").json()["logo"]
+        self.assertEqual(defaults["logo"], "/brand/logo-mark-on-dark.png")
+        self._admin()
+        r = self._send("patch", "/api/admin/logo", {"logo": "https://x.supabase.co/new-logo.png"})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.client.get("/api/site/logo").json()["logo"]["logo"], "https://x.supabase.co/new-logo.png")
+        self.assertEqual(self.client.get("/api/site/logo").json()["logo"]["logo_light"], "/brand/logo-mark-on-light.png")
+        self._send("patch", "/api/admin/logo", {"logo": ""})       # empty value resets to the built-in logo
+        self.assertEqual(self.client.get("/api/site/logo").json()["logo"]["logo"], "/brand/logo-mark-on-dark.png")
+
+    def test_logo_rejects_bad_url(self):
+        self._admin()
+        self.assertEqual(self._send("patch", "/api/admin/logo", {"logo": "javascript:alert(1)"}).status_code, 400)

@@ -276,3 +276,25 @@ class AuditLog(Timestamped):
     entity_type = models.CharField(max_length=80)
     entity_id = models.CharField(max_length=80, blank=True, null=True)
     metadata = models.JSONField(default=dict, blank=True)
+
+
+class HeroSlide(Timestamped):
+    """A homepage slider image the owner can add, edit, reorder, hide or delete."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    image_url = models.CharField(max_length=1000)
+    title = models.CharField(max_length=160, blank=True, default="")
+    subtitle = models.CharField(max_length=300, blank=True, default="")
+    link_url = models.CharField(max_length=500, blank=True, default="")
+    link_label = models.CharField(max_length=60, blank=True, default="")
+    alt_text = models.CharField(max_length=240, blank=True, default="")
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "created_at"]
+
+
+class SiteAsset(Timestamped):
+    """Owner-editable brand images (logos) keyed by name, kept in their own table."""
+    key = models.CharField(max_length=40, primary_key=True)
+    url = models.CharField(max_length=1000, blank=True, default="")
