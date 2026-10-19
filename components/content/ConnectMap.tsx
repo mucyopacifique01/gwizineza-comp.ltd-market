@@ -14,7 +14,7 @@ type Place = {
   name: string; address: string; rating?: number | null; reviews?: number | null;
   phone?: string | null; website?: string | null; lat?: number | null; lng?: number | null;
 };
-type MapPlace = { place: Place | null; fallback: { name: string; address: string } };
+type MapPlace = { place: Place | null; pin?: { lat: number; lng: number } | null; fallback: { name: string; address: string } };
 type Settings = { siteName?: string; location?: string; phone?: string | null; email?: string | null; whatsapp?: string | null };
 
 export function ConnectMap() {
@@ -36,11 +36,14 @@ export function ConnectMap() {
   const name = place?.name || info?.fallback?.name || siteInfo.siteName || 'Gwizineza Market';
   const address = place?.address || info?.fallback?.address || 'Kabarondo, Rwanda';
   const query = encodeURIComponent(`${name}, ${address}`);
-  const embedSrc = `https://www.google.com/maps?q=${query}&z=15&hl=en&output=embed`;
-  const openInMaps = `https://www.google.com/maps/search/?api=1&query=${query}`;
-  const directions = place?.lat != null && place?.lng != null
-    ? `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-    : `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+  const target = place?.lat != null && place?.lng != null
+    ? `${place.lat},${place.lng}`
+    : info?.pin?.lat != null && info?.pin?.lng != null
+      ? `${info.pin.lat},${info.pin.lng}`
+      : query;
+  const embedSrc = `https://www.google.com/maps?q=${target}&z=15&hl=en&output=embed`;
+  const openInMaps = `https://www.google.com/maps/search/?api=1&query=${target}`;
+  const directions = `https://www.google.com/maps/dir/?api=1&destination=${target}`;
 
   const phone = siteInfo.phone || site.phone;
   const email = siteInfo.email || site.email;

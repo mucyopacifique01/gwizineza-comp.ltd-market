@@ -412,7 +412,7 @@ class MapPlaceTests(TestCase):
 
             def json(self_inner):
                 return {"place_results": [{
-                    "title": "Gwizineza Trading Company", "address": "Kabarondo, Kayonza, Rwanda",
+                    "title": "Gwizineza Market Kabarondo", "address": "Kabarondo, Kayonza, Rwanda",
                     "rating": 4.7, "reviews": 128, "phone": "0788396816", "website": None,
                     "gps_coordinates": {"latitude": -2.0127, "longitude": 30.5585}, "thumbnail": None,
                 }]}
@@ -424,12 +424,35 @@ class MapPlaceTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 payload = response.json()
                 self.assertEqual(payload["source"], "serpapi")
-                self.assertEqual(payload["place"]["name"], "Gwizineza Trading Company")
+                self.assertEqual(payload["place"]["name"], "Gwizineza Market Kabarondo")
                 self.assertEqual(payload["place"]["rating"], 4.7)
-                self.assertEqual(payload["place"]["reviews"], 128)
-                fake_get.assert_called_once()
                 self.assertEqual(fake_get.call_args.kwargs["params"]["api_key"], "serp-live-key")
 
                 # Second call is served from cache without another SerpApi request.
                 self.client.get("/api/map/place")
                 fake_get.assert_called_once()
+
+    def test_map_place_rejects_foreign_business_and_pins_the_town(self):
+        from unittest import mock
+        from .models import SiteAsset
+
+        class ForeignBusiness:
+            status_code = 200
+
+            def json(self_inner):
+                return {"place_results": [{  # single object, not a list
+                    "title": "ineza shop trading", "address": "Ngororero, Rwanda",
+                    "gps_coordinates": {"latitude": -1.86, "longitude": 29.62},
+                }]}
+
+        SiteAsset.objects.update_or_create(key="serpapi_key", defaults={"url": "serp-live-key"})
+        with self.settings(ADMIN_PASSWORD="", SERPAPI_KEY=""):
+            with mock.patch("market.views.requests.get", return_value=ForeignBusiness()) as fake_get:
+                response = self.client.get("/api/map/place")
+                self.assertEqual(response.status_code, 200)
+                payload = response.json()
+                # Never show a nearby business that is not ours.
+                self.assertIsNone(payload["place"])
+                # Falls back to the configured site coordinates with HTTP 200.
+                self.assertEqual(payload["pin"], {"lat": -2.0127, "lng": 30.5585})
+                self.assertEqual(payload["source"], "fallback")

@@ -757,8 +757,22 @@ def serpapi_key():
     return (settings.SERPAPI_KEY or "").strip()
 
 
-def serpapi_place(api_key, queries):
-    """Look the business up on Google Maps via SerpApi; first titled result wins."""
+def _place_from(item):
+    gps = item.get("gps_coordinates") or {}
+    return {
+        "name": item.get("title"), "address": item.get("address") or "",
+        "rating": item.get("rating"), "reviews": item.get("reviews"),
+        "phone": item.get("phone"), "website": item.get("website"),
+        "lat": gps.get("latitude"), "lng": gps.get("longitude"),
+        "thumbnail": item.get("thumbnail"),
+    }
+
+
+def serpapi_place(api_key, queries, accept=None):
+    """Look a place up on Google Maps via SerpApi. `accept` keeps only results
+    whose title contains that word (e.g. the business name), so a wrong
+    nearby business is never shown as ours. SerpApi returns place_results
+    as a single object when there is one match and a list otherwise."""
     for query in queries:
         try:
             resp = requests.get("https://serpapi.com/search.json", params={
@@ -766,20 +780,20 @@ def serpapi_place(api_key, queries):
             }, timeout=12)
             if resp.status_code != 200:
                 continue
-            for item in (resp.json() or {}).get("place_results") or []:
-                if item.get("title"):
-                    gps = item.get("gps_coordinates") or {}
-                    return {
-                        "name": item.get("title"), "address": item.get("address") or "",
-                        "rating": item.get("rating"), "reviews": item.get("reviews"),
-                        "phone": item.get("phone"), "website": item.get("website"),
-                        "lat": gps.get("latitude"), "lng": gps.get("longitude"),
-                        "thumbnail": item.get("thumbnail"),
-                    }
-        except requests.RequestException:
+            results = (resp.json() or {}).get("place_results")
+            if isinstance(results, dict):
+                results = [results]
+            if not isinstance(results, list):
+                continue
+            for item in results:
+                if not item.get("title"):
+                    continue
+                if accept and accept not in item.get("title", "").lower():
+                    continue
+                return _place_from(item)
+        except (requests.RequestException, ValueError):
             continue
     return None
-
 
 @csrf_exempt
 def api_dispatch(request, resource=""):
@@ -1000,13 +1014,29 @@ def _api_dispatch(request, resource=""):
         row, _ = SiteSettings.objects.get_or_create(key="site")
         loc = row.location if "rwanda" in row.location.lower() else f"{row.location}, Rwanda"
         fallback = {"name": row.site_name, "address": loc}
-        place = cache.get(MAP_CACHE_KEY)
-        if place is None:
+        cached = cache.get(MAP_CACHE_KEY)
+        if cached is None:
+            place, pin = None, None
             api_key = serpapi_key()
-            place = serpapi_place(api_key, [f"Gwizineza Trading Company {row.location}", row.location]) if api_key else None
-            if place:
-                cache.set(MAP_CACHE_KEY, place, 60 * 60 * 12)
-        return j({"place": place, "fallback": fallback, "source": "serpapi" if place else "fallback"})
+            if api_key:
+                # Only accept a Google Maps listing that is genuinely ours.
+                place = serpapi_place(api_key, [
+                    f"Gwizineza Trading Company {row.location}", "Gwizineza Kabarondo", row.site_name,
+                ], accept="gwizineza")
+                if place is None:
+                    # Business not on Google Maps: pin the town instead.
+                    town = serpapi_place(api_key, [row.location])
+                    if town and town.get("lat") is not None and town.get("name", "").lower() in row.location.lower():
+                        pin = {"lat": town["lat"], "lng": town["lng"]}
+                if place or pin:
+                    cached = {"place": place, "pin": pin}
+                    cache.set(MAP_CACHE_KEY, cached, 60 * 60 * 12)
+        cached = cached or {}
+        place, pin = cached.get("place"), cached.get("pin")
+        if row.map_lat is not None and row.map_lng is not None:
+            pin = pin or {"lat": row.map_lat, "lng": row.map_lng}
+        source = "serpapi" if place else "fallback"
+        return j({"place": place, "pin": pin, "fallback": fallback, "source": source})
 
     if path == "site/settings" and method == "GET":
         row, _ = SiteSettings.objects.get_or_create(key="site", defaults={
