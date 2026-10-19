@@ -70,3 +70,5 @@ services:
         sync: false
       - key: SUPABASE_SEND_SMS_HOOK_SECRET
         sync: false
+      - key: SERPAPI_KEY
+        sync: false

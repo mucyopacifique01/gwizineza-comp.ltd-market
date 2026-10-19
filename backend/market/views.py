@@ -745,6 +745,42 @@ def handle_product_images(request, path):
     return j({"error": "Method not allowed"}, 405)
 
 
+# ---- Google Map place card (optional SerpApi integration) ------------------------
+MAP_CACHE_KEY = "map_place_v1"
+
+
+def serpapi_key():
+    """Owner-configured SerpApi key: Admin > Settings field first, env var fallback."""
+    asset = SiteAsset.objects.filter(key="serpapi_key").first()
+    if asset and (asset.url or "").strip():
+        return asset.url.strip()
+    return (settings.SERPAPI_KEY or "").strip()
+
+
+def serpapi_place(api_key, queries):
+    """Look the business up on Google Maps via SerpApi; first titled result wins."""
+    for query in queries:
+        try:
+            resp = requests.get("https://serpapi.com/search.json", params={
+                "engine": "google_maps", "q": query, "api_key": api_key, "hl": "en",
+            }, timeout=12)
+            if resp.status_code != 200:
+                continue
+            for item in (resp.json() or {}).get("place_results") or []:
+                if item.get("title"):
+                    gps = item.get("gps_coordinates") or {}
+                    return {
+                        "name": item.get("title"), "address": item.get("address") or "",
+                        "rating": item.get("rating"), "reviews": item.get("reviews"),
+                        "phone": item.get("phone"), "website": item.get("website"),
+                        "lat": gps.get("latitude"), "lng": gps.get("longitude"),
+                        "thumbnail": item.get("thumbnail"),
+                    }
+        except requests.RequestException:
+            continue
+    return None
+
+
 @csrf_exempt
 def api_dispatch(request, resource=""):
     try:
@@ -958,6 +994,18 @@ def _api_dispatch(request, resource=""):
                 return j({"ok": True})
             return j({"error": "Method not allowed"}, 405)
         return j({"error": "Not found"}, 404)
+
+    
+    if path == "map/place" and method == "GET":
+        row, _ = SiteSettings.objects.get_or_create(key="site")
+        fallback = {"name": row.site_name, "address": f"{row.location}, Rwanda"}
+        place = cache.get(MAP_CACHE_KEY)
+        if place is None:
+            api_key = serpapi_key()
+            place = serpapi_place(api_key, [f"Gwizineza Trading Company {row.location}", row.location]) if api_key else None
+            if place:
+                cache.set(MAP_CACHE_KEY, place, 60 * 60 * 12)
+        return j({"place": place, "fallback": fallback, "source": "serpapi" if place else "fallback"})
 
     if path == "site/settings" and method == "GET":
         row, _ = SiteSettings.objects.get_or_create(key="site", defaults={
@@ -1555,6 +1603,7 @@ def _api_dispatch(request, resource=""):
             row, _ = SiteSettings.objects.get_or_create(key="site")
             result = settings_defaults()
             result.update(settings_dto(row))
+            result["hasSerpApiKey"] = bool(serpapi_key())
             return j({"settings": result})
         if method == "PATCH":
             row, _ = SiteSettings.objects.get_or_create(key="site")
@@ -1587,8 +1636,11 @@ def _api_dispatch(request, resource=""):
                         setattr(row, field, val)
                     except (ValueError, TypeError):
                         return j({"error": "Invalid map coordinates"}, 400)
+            if "serpApiKey" in body:
+                SiteAsset.objects.update_or_create(key="serpapi_key", defaults={"url": clean(body.get("serpApiKey") or "", 200)})
+                cache.delete(MAP_CACHE_KEY)
             row.save()
-            return j({"ok": True, "settings": settings_dto(row)})
+            return j({"ok": True, "settings": settings_dto(row), "hasSerpApiKey": bool(serpapi_key())})
 
     if path == "product-images" or path == "seller/product-images":
         return handle_product_images(request, path)

@@ -108,6 +108,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "product-images")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 TEXTBEE_API_KEY = os.environ.get("TEXTBEE_API_KEY", "")
+SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 TEXTBEE_DEVICE_ID = os.environ.get("TEXTBEE_DEVICE_ID", "")
 SUPABASE_SEND_SMS_HOOK_SECRET = os.environ.get("SUPABASE_SEND_SMS_HOOK_SECRET", "")
 

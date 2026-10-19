@@ -24,6 +24,8 @@ type Settings = {
   announcementEnabled: boolean;
   mapLat: number | null;
   mapLng: number | null;
+  serpApiKey?: string;
+  hasSerpApiKey?: boolean;
 };
 
 const defaults: Settings = {
@@ -41,6 +43,8 @@ const defaults: Settings = {
   announcementEnabled: true,
   mapLat: -2.0127,
   mapLng: 30.5585,
+  serpApiKey: '',
+  hasSerpApiKey: false,
 };
 
 type TextSettingKey = Exclude<keyof Settings, 'copyrightYear' | 'announcementEnabled' | 'mapLat' | 'mapLng'>;
@@ -52,10 +56,12 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dbHealth, setDbHealth] = useState<'unknown' | 'checking' | 'ok' | 'error'>('unknown');
+  const [serpApiKey, setSerpApiKey] = useState('');
+  const [hasSerpApiKey, setHasSerpApiKey] = useState(false);
 
   useEffect(() => {
     apiFetch<{ settings: Settings }>('/api/admin/settings')
-      .then(data => setForm(data.settings))
+      .then(data => { setForm(data.settings); setHasSerpApiKey(Boolean(data.settings.hasSerpApiKey)); })
       .catch(e => { if (e instanceof Error && 'status' in e && ((e as { status?: number }).status === 401 || (e as { status?: number }).status === 403)) { window.location.href = '/admin/login'; return; } setError(e instanceof Error ? e.message : 'Could not load settings'); })
       .finally(() => setLoading(false));
   }, []);
@@ -70,6 +76,19 @@ export default function AdminSettingsPage() {
     setForm(current => ({ ...current, [key]: value } as Settings));
     setError('');
   };
+
+  async function clearSerpApiKey() {
+    setSaving(true);
+    try {
+      await apiFetch('/api/admin/settings', { method: 'PATCH', body: jsonBody({ serpApiKey: '' }) });
+      setHasSerpApiKey(false);
+      toast.show('SerpApi key removed');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove the key');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function checkDatabase() {
     setDbHealth('checking');
@@ -93,8 +112,11 @@ export default function AdminSettingsPage() {
         mapLat: form.mapLat === null ? null : Number(form.mapLat),
         mapLng: form.mapLng === null ? null : Number(form.mapLng),
       };
+      if (serpApiKey !== '') payload.serpApiKey = serpApiKey;
       const data = await apiFetch<{ settings: Settings }>('/api/admin/settings', { method: 'PATCH', body: jsonBody(payload) });
       setForm(data.settings);
+      setHasSerpApiKey(Boolean((data.settings as Settings & { hasSerpApiKey?: boolean }).hasSerpApiKey));
+      setSerpApiKey('');
       toast.show('Super admin settings saved');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save settings');
@@ -158,6 +180,17 @@ export default function AdminSettingsPage() {
           <div className="form-grid cols-2">
             <TextField label="Latitude" type="number" step="any" value={form.mapLat ?? ''} onChange={setNumber('mapLat')} />
             <TextField label="Longitude" type="number" step="any" value={form.mapLng ?? ''} onChange={setNumber('mapLng')} />
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-head"><div><h2 className="card-title">Google Map info card (SerpApi)</h2><p className="muted small">Powers the rating card on the contact page map. Leave blank to keep the current key.</p></div></div>
+          <div className="form-grid cols-2">
+            <TextField label="SerpApi key" type="password" placeholder={hasSerpApiKey ? 'A key is saved — type to replace' : 'Paste your SerpApi key'} value={serpApiKey} onChange={e => { setSerpApiKey(e.target.value); setError(''); }} className="span-2" />
+          </div>
+          <div className="row-between" style={{ marginTop: 12 }}>
+            <p className="muted small">{hasSerpApiKey ? 'A SerpApi key is configured. The map card shows the live Google rating.' : 'No key yet. The map still works; the card shows your name and location only.'}</p>
+            {hasSerpApiKey && serpApiKey === '' && <Button variant="outline" loading={saving} onClick={() => void clearSerpApiKey()}>Clear saved key</Button>}
           </div>
         </section>
       </div>

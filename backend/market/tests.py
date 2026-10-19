@@ -356,3 +356,80 @@ class HeroSliderAndLogoTests(TestCase):
     def test_logo_rejects_bad_url(self):
         self._admin()
         self.assertEqual(self._send("patch", "/api/admin/logo", {"logo": "javascript:alert(1)"}).status_code, 400)
+
+
+class MapPlaceTests(TestCase):
+    """SerpApi-backed Google Map info card: graceful without a key, admin-managed key."""
+
+    def setUp(self):
+        self.client = Client()
+        from django.core.cache import cache
+        cache.delete("map_place_v1")
+
+    def test_map_place_returns_200_with_fallback_when_no_key(self):
+        with self.settings(SERPAPI_KEY=""):
+            from .models import SiteAsset
+            SiteAsset.objects.filter(key="serpapi_key").delete()
+            response = self.client.get("/api/map/place")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertIsNone(payload["place"])
+            self.assertEqual(payload["source"], "fallback")
+            self.assertIn("name", payload["fallback"])
+            self.assertIn("address", payload["fallback"])
+
+    def test_admin_settings_manage_serpapi_key_without_leaking_it(self):
+        from .models import SiteAsset
+        with self.settings(ADMIN_PASSWORD="owner-secret", SERPAPI_KEY=""):
+            self.client.post("/api/admin/login",
+                             data='{"password":"owner-secret"}', content_type="application/json")
+            response = self.client.get("/api/admin/settings")
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json()["settings"]["hasSerpApiKey"])
+
+            response = self.client.patch("/api/admin/settings",
+                                         data='{"serpApiKey":"serp-test-key-123"}', content_type="application/json")
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["hasSerpApiKey"])
+            self.assertEqual(SiteAsset.objects.get(key="serpapi_key").url, "serp-test-key-123")
+
+            # The public settings payload must never expose the key, only the boolean exists in admin GET.
+            public = self.client.get("/api/site/settings")
+            self.assertNotIn("serp", public.content.decode().lower())
+
+            response = self.client.patch("/api/admin/settings",
+                                         data='{"serpApiKey":""}', content_type="application/json")
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json()["hasSerpApiKey"])
+            self.assertEqual(SiteAsset.objects.get(key="serpapi_key").url, "")
+
+    def test_map_place_uses_serpapi_when_key_is_set(self):
+        from unittest import mock
+        from .models import SiteAsset
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self_inner):
+                return {"place_results": [{
+                    "title": "Gwizineza Trading Company", "address": "Kabarondo, Kayonza, Rwanda",
+                    "rating": 4.7, "reviews": 128, "phone": "0788396816", "website": None,
+                    "gps_coordinates": {"latitude": -2.0127, "longitude": 30.5585}, "thumbnail": None,
+                }]}
+
+        SiteAsset.objects.update_or_create(key="serpapi_key", defaults={"url": "serp-live-key"})
+        with self.settings(ADMIN_PASSWORD="", SERPAPI_KEY=""):
+            with mock.patch("market.views.requests.get", return_value=FakeResponse()) as fake_get:
+                response = self.client.get("/api/map/place")
+                self.assertEqual(response.status_code, 200)
+                payload = response.json()
+                self.assertEqual(payload["source"], "serpapi")
+                self.assertEqual(payload["place"]["name"], "Gwizineza Trading Company")
+                self.assertEqual(payload["place"]["rating"], 4.7)
+                self.assertEqual(payload["place"]["reviews"], 128)
+                fake_get.assert_called_once()
+                self.assertEqual(fake_get.call_args.kwargs["params"]["api_key"], "serp-live-key")
+
+                # Second call is served from cache without another SerpApi request.
+                self.client.get("/api/map/place")
+                fake_get.assert_called_once()

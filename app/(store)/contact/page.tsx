@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { site } from '@/lib/config';
 import { InfoPage } from '@/components/content/InfoPage';
-import { LocationBand } from '@/components/home/LocationBand';
+import { ConnectMap } from '@/components/content/ConnectMap';
 import { ContactForm } from '@/components/content/ContactForm';
 import { Icon } from '@/components/ui/Icon';
 
@@ -28,7 +28,7 @@ export default function ContactPage() {
           <ContactForm />
         </div>
       </InfoPage>
-      <LocationBand />
+      <ConnectMap />
     </>
   );
 }
