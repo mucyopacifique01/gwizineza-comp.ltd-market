@@ -34,16 +34,17 @@ export function ConnectMap() {
 
   const place = info?.place ?? null;
   const name = place?.name || info?.fallback?.name || siteInfo.siteName || 'Gwizineza Market';
-  const address = place?.address || info?.fallback?.address || 'Kabarondo, Rwanda';
-  const query = encodeURIComponent(`${name}, ${address}`);
+  // Keep the map view/pin unchanged while showing the exact business address requested.
+  const address = 'XHP5+W7H, Kabarondo';
+  const locationQuery = encodeURIComponent(`${name}, ${address}, Rwanda`);
   const target = place?.lat != null && place?.lng != null
     ? `${place.lat},${place.lng}`
     : info?.pin?.lat != null && info?.pin?.lng != null
       ? `${info.pin.lat},${info.pin.lng}`
       : `${site.map.lat},${site.map.lng}`; // saved town pin until the API answers
   const embedSrc = `https://www.google.com/maps?q=${target}&z=15&hl=en&output=embed`;
-  const openInMaps = `https://www.google.com/maps/search/?api=1&query=${target}`;
-  const directions = `https://www.google.com/maps/dir/?api=1&destination=${target}`;
+  const openInMaps = `https://www.google.com/maps/search/?api=1&query=${locationQuery}`;
+  const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${address}, Rwanda`)}`;
 
   const phone = siteInfo.phone || site.phone;
   const email = siteInfo.email || site.email;
@@ -60,7 +61,7 @@ export function ConnectMap() {
     phone && { icon: 'phone' as IconName, label: `Hotline: ${phone}`, href: `tel:${phone.replace(/\s/g, '')}` },
     email && { icon: 'mail' as IconName, label: email, href: `mailto:${email}` },
     whatsapp && { icon: 'whatsapp' as IconName, label: 'WhatsApp chat', href: `https://wa.me/${whatsapp}` },
-    { icon: 'pin' as IconName, label: siteInfo.location || site.location, href: '' },
+    { icon: 'pin' as IconName, label: address, href: '' },
   ].filter(Boolean) as { icon: IconName; label: string; href: string }[];
 
   return (
@@ -84,7 +85,7 @@ export function ConnectMap() {
               ))}
             </div>
           )}
-          <p className="connect-copyright">© {new Date().getFullYear()} {siteInfo.siteName || site.name} · {siteInfo.location || site.location}</p>
+          <p className="connect-copyright">© {new Date().getFullYear()} {siteInfo.siteName || site.name} · {address}</p>
         </div>
         <div className="connect-map-area">
           <iframe
