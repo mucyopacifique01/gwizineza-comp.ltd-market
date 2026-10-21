@@ -7,6 +7,7 @@ import '@/styles/figma.css';
 import '@/styles/figma-marketplace.css';
 import '@/styles/figma-console.css';
 import '@/styles/figma-47-completion.css';
+import '@/styles/contact-responsive.css';
 
 const display = Outfit({ subsets: ['latin'], variable: '--font-bricolage', display: 'swap' });
 const body = Inter({ subsets: ['latin'], variable: '--font-manrope', display: 'swap' });
