@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCart } from '@/components/providers/CartProvider';
+import { useCart } from '../../../components/providers/CartProvider';
 import { ProductImage } from '@/components/product/ProductImage';
 import { QuantityStepper } from '@/components/product/QuantityStepper';
 import { OrderSummary } from '@/components/cart/OrderSummary';
