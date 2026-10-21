@@ -194,6 +194,19 @@ class SiteSettings(Timestamped):
     map_lng = models.FloatField(blank=True, null=True, default=30.5585)
 
 
+class NewsletterSubscriber(Timestamped):
+    """A customer who explicitly opted in to market news by email."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(max_length=254, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.email
+
+
 class WishlistItem(Timestamped):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     customer = models.ForeignKey(CustomerProfile, related_name="wishlist_items", on_delete=models.CASCADE)
