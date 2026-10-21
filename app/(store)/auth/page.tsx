@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
-import { TextField } from '@/components/ui/Field';
-import { Button, ButtonLink } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
-import { LogoMark } from '@/components/brand/Logo';
+import { TextField } from '../../../components/ui/Field';
+import { Button, ButtonLink } from '../../../components/ui/Button';
+import { Icon } from '../../../components/ui/Icon';
+import { LogoMark } from '../../../components/brand/Logo';
 
 function GoogleG({ size = 18 }: { size?: number }) {
   return (
