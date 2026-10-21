@@ -13,6 +13,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import signing
 from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator
 from django.core.cache import cache
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Avg, Count, Q, Sum
@@ -24,7 +25,7 @@ import logging
 
 from .models import (
     AuditLog, Cart, CartItem, Category, ContentPost, CustomerProfile,
-    DeliveryZone, HeroSlide, PaymentRecord, Product, ProductImage, ProductReview,
+    DeliveryZone, HeroSlide, NewsletterSubscriber, PaymentRecord, Product, ProductImage, ProductReview,
     Seller, SiteAsset, SiteSettings, StoreOrder, StoreOrderItem, SupportTicket,
     WishlistItem,
 )
@@ -831,6 +832,37 @@ def _api_dispatch(request, resource=""):
         return j({"ok": db_status == "ok", "backend": "Django",
                   "database": "Supabase PostgreSQL", "databaseStatus": db_status,
                   "time": iso(timezone.now())}, 200)
+
+    if path == "newsletter/subscribe":
+        if method != "POST":
+            return j({"error": "Method not allowed"}, 405)
+        email = clean(body.get("email"), 254).lower()
+        try:
+            EmailValidator()(email)
+        except ValidationError:
+            return j({"error": "Enter a valid email address."}, 400)
+        subscriber, created = NewsletterSubscriber.objects.get_or_create(
+            email=email, defaults={"is_active": True}
+        )
+        if not subscriber.is_active:
+            subscriber.is_active = True
+            subscriber.save(update_fields=["is_active", "updated_at"])
+        return j({
+            "ok": True,
+            "message": "You're subscribed to Gwizineza Market updates.",
+        }, 201 if created else 200)
+
+    if path == "admin/newsletter/subscribers" and method == "GET":
+        blocked = require_admin(request)
+        if blocked:
+            return blocked
+        subscribers = NewsletterSubscriber.objects.filter(is_active=True).order_by("-created_at")[:1000]
+        return j({
+            "subscribers": [
+                {"id": str(row.id), "email": row.email, "createdAt": iso(row.created_at)}
+                for row in subscribers
+            ],
+        })
 
     if path == "auth/send-sms-hook" and method == "POST":
         return send_textbee_hook(request)
