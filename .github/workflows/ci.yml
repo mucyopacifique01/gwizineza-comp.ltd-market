@@ -49,13 +49,16 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Match Render's environment so CI catches missing build-time dev dependencies.
+      NODE_ENV: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Install frontend dependencies
-        run: npm install --include=optional
+        run: npm install --include=dev --include=optional
       - name: Audit Figma functional routes and responsive breakpoints
         run: npm run check:figma-routes
       - name: Type-check
