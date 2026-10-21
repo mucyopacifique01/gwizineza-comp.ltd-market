@@ -72,8 +72,9 @@ a.contact-channel:hover {
 .connect-copyright { margin-top: auto; padding-top: 26px; color: var(--fig-muted, var(--muted)); font-size: 12px; line-height: 1.6; }
 .connect-map-area { position: relative; min-width: 0; min-height: 380px; overflow: hidden; border: 1px solid var(--fig-border, var(--line)); border-radius: 20px; background: var(--fig-surface, var(--paper)); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
 .connect-map-area iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 380px; border: 0; filter: saturate(.82) contrast(1.02); }
-.map-info-card { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 1; display: flex; flex-direction: column; gap: 6px; width: min(330px, calc(100% - 32px)); padding: 17px; border: 1px solid var(--fig-border, var(--line)); border-radius: 16px; background: rgba(15,25,35,.96); color: var(--fig-text, var(--ink)); box-shadow: 0 14px 36px rgba(0,0,0,.3); backdrop-filter: blur(12px); }
-.map-info-card strong { font-size: 16px; }
+.map-info-card { position: absolute; top: 16px; left: 16px; right: auto; bottom: auto; z-index: 1; display: flex; flex-direction: column; gap: 6px; width: min(270px, calc(100% - 32px)); height: fit-content; min-height: 0; padding: 14px; border: 1px solid var(--fig-border, var(--line)); border-radius: 16px; background: rgba(15,25,35,.96); color: var(--fig-text, var(--ink)); box-shadow: 0 14px 36px rgba(0,0,0,.3); backdrop-filter: blur(12px); }
+.map-info-card strong { font-size: 16px; line-height: 1.35; }
+.map-info-card .map-info-address { overflow-wrap: anywhere; }
 .map-info-address, .map-info-reviews { color: var(--fig-muted, var(--muted)); font-size: 12px; line-height: 1.5; }
 .map-info-rating { color: var(--fig-text, var(--ink)); font-size: 13px; }
 .map-stars { color: var(--fig-yellow, var(--sun)); }
@@ -93,7 +94,7 @@ a.contact-channel:hover {
   .contact-channel { min-height: 74px; padding: 14px; }
   .connect-map { padding-block: 36px; }
   .connect-map-area, .connect-map-area iframe { min-height: 320px; }
-  .map-info-card { left: 10px; right: 10px; bottom: 10px; width: calc(100% - 20px); padding: 13px; }
+  .map-info-card { top: 10px; left: 10px; right: auto; bottom: auto; width: min(270px, calc(100% - 20px)); padding: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .contact-channel, .connect-list li > a { transition: none; }
