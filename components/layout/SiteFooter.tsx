@@ -4,6 +4,7 @@ import { site } from '@/lib/config';
 import { getSiteSettings } from '@/lib/site-settings';
 import { Logo } from '@/components/brand/Logo';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { NewsletterSignup } from '@/components/layout/NewsletterSignup';
 
 export async function SiteFooter({ categories }: { categories: CategoryDTO[] }) {
   const settings = await getSiteSettings();
@@ -33,6 +34,7 @@ export async function SiteFooter({ categories }: { categories: CategoryDTO[] }) 
         <nav><h3>Company</h3><Link href="/about">About us</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav>
         <div className="footer-contact"><h3>Contact</h3>{phone && <a className="footer-link" href={'tel:' + phone.replace(/\s/g,'')}><Icon name="phone" size={15}/> {phone}</a>}{email && <a className="footer-link" href={'mailto:' + email}><Icon name="mail" size={15}/> {email}</a>}{whatsapp && <a className="footer-link" href={'https://wa.me/' + whatsapp} target="_blank" rel="noopener noreferrer"><Icon name="whatsapp" size={15}/> WhatsApp</a>}{socials.length > 0 && <div className="row" style={{marginTop:14}}>{socials.map(([icon,url,label]) => <a key={label} className="social" href={url} aria-label={label} target="_blank" rel="noopener noreferrer"><Icon name={icon} size={16}/></a>)}</div>}{!phone && !email && !whatsapp && socials.length === 0 && <><p className="footer-text">Need help with an order or product?</p><Link className="footer-link" href="/contact">Visit our contact page <Icon name="arrowRight" size={14}/></Link></>}</div>
       </div>
+      <NewsletterSignup />
       <div className="footer-bottom"><span>© {settings.copyrightYear} {settings.copyrightText} · {settings.location}</span><span>{settings.footerCredit}</span></div>
     </div>
   </footer>;
