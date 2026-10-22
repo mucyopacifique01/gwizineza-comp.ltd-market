@@ -1,6 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from .models import Category, NewsletterSubscriber, Product
+from .models import Cart, Category, NewsletterSubscriber, Product, StoreOrder
 
 
 class MarketApiTests(TestCase):
