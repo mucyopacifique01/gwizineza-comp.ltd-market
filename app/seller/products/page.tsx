@@ -31,9 +31,14 @@ export default function SellerProductsPage() {
   const list = useMemo(() => (products.data?.products ?? []).filter(p => `${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase())), [products.data, q]);
 
   async function saveStock(p: SellerProduct, stock: number) {
-    await apiFetch('/api/seller/products', { method: 'PATCH', body: jsonBody({ id: p.id, stock }) });
-    products.setData(d => d && { products: d.products.map(x => (x.id === p.id ? { ...x, stock } : x)) });
-    toast.show(`Stock updated: ${stock}`);
+    try {
+      await apiFetch('/api/seller/products', { method: 'PATCH', body: jsonBody({ id: p.id, stock }) });
+      products.setData(d => d && { products: d.products.map(x => (x.id === p.id ? { ...x, stock } : x)) });
+      toast.show(`Stock updated: ${stock}`);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Could not update stock. Please try again.', { tone: 'error' });
+      throw e;
+    }
   }
 
   async function toggle(p: SellerProduct) {
