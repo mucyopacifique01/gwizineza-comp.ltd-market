@@ -25,6 +25,7 @@ type LedgerEvent = {
   providerRef?: string;
   refundReference?: string;
   confirmedExternally: boolean;
+  failureReason?: string;
 };
 
 type LedgerPayment = {
@@ -84,6 +85,19 @@ const STATUS_LABEL: Record<string, string> = {
   FAILED: 'Failed',
 };
 
+const FAILURE_REASONS: { value: string; label: string }[] = [
+  { value: 'PROVIDER_DECLINED', label: 'Provider declined the transaction' },
+  { value: 'INSUFFICIENT_FUNDS', label: 'Insufficient funds' },
+  { value: 'CUSTOMER_ABORTED', label: 'Customer cancelled the payment attempt' },
+  { value: 'TIMEOUT', label: 'Transaction timed out or no response' },
+  { value: 'REFERENCE_MISMATCH', label: 'Transaction reference could not be matched' },
+  { value: 'OTHER', label: 'Other reason (explain below)' },
+];
+
+function failureReasonLabel(value?: string) {
+  return FAILURE_REASONS.find(reason => reason.value === value)?.label ?? value ?? '';
+}
+
 const METHOD_LABEL: Record<PaymentMethod, string> = {
   COD: 'Cash on delivery',
   MOMO: 'MTN Mobile Money',
@@ -125,6 +139,7 @@ export default function FinanceLedgerPage() {
   const [note, setNote] = useState('');
   const [reference, setReference] = useState('');
   const [externalConfirmation, setExternalConfirmation] = useState(false);
+  const [failureReason, setFailureReason] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
@@ -169,6 +184,7 @@ export default function FinanceLedgerPage() {
     setNote('');
     setReference('');
     setExternalConfirmation(false);
+    setFailureReason('');
   }
 
   function showHistory(payment: LedgerPayment) {
@@ -177,6 +193,7 @@ export default function FinanceLedgerPage() {
     setNote('');
     setReference('');
     setExternalConfirmation(false);
+    setFailureReason('');
   }
 
   function closePanel() {
@@ -185,6 +202,7 @@ export default function FinanceLedgerPage() {
     setNote('');
     setReference('');
     setExternalConfirmation(false);
+    setFailureReason('');
   }
 
   async function saveTransition(event: FormEvent<HTMLFormElement>) {
@@ -200,6 +218,7 @@ export default function FinanceLedgerPage() {
           note: note.trim(),
           providerRef: reference.trim(),
           externalConfirmation,
+          failureReason,
         }),
       });
       setSelected(current => {
@@ -214,6 +233,7 @@ export default function FinanceLedgerPage() {
       setNote('');
       setReference('');
       setExternalConfirmation(false);
+      setFailureReason('');
       setReloadKey(value => value + 1);
       toast.show(result.message || 'Payment ledger updated');
     } catch (error) {
@@ -304,7 +324,7 @@ export default function FinanceLedgerPage() {
                           {payment.status === 'PENDING' && <>
                             <Button size="sm" onClick={() => startTransition(payment, 'PAID')} icon="check">Confirm paid</Button>
                             <Button size="sm" variant="outline" onClick={() => startTransition(payment, 'CANCELLED')}>Cancel</Button>
-                            <Button size="sm" variant="ghost" onClick={() => startTransition(payment, 'FAILED')}>Record failed</Button>
+                            <Button size="sm" variant="ghost" onClick={() => startTransition(payment, 'FAILED')} icon="alert">Record failure</Button>
                           </>}
                           {payment.status === 'PAID' && <Button size="sm" variant="outline" onClick={() => startTransition(payment, 'REFUNDED')} icon="refresh">Record refund</Button>}
                           {['FAILED', 'CANCELLED'].includes(payment.status) && <span className="muted tiny">Closed</span>}
@@ -350,9 +370,13 @@ export default function FinanceLedgerPage() {
             <form className="finance-action-form" onSubmit={event => void saveTransition(event)}>
               <div className="alert alert-warn" role="note">
                 <Icon name="alert" size={18} />
-                <span><strong>{transitionLabel(targetStatus)}.</strong> {(targetStatus === 'PAID' || targetStatus === 'REFUNDED')
-                  ? 'This is a ledger action only. Verify the actual receipt or completed refund outside this website first.'
-                  : 'This records the reason for closing a pending payment. It does not start, cancel or verify a transaction with a payment provider.'}</span>
+                <span><strong>{transitionLabel(targetStatus)}.</strong> {targetStatus === 'PAID'
+                  ? 'Verify the receipt or cash collection before confirming payment.'
+                  : targetStatus === 'REFUNDED'
+                    ? 'Verify that the refund has already been sent outside this website.'
+                    : targetStatus === 'FAILED'
+                      ? 'Use this only after the payment attempt was unsuccessful. The order remains separate from this payment status, and no provider action is triggered.'
+                      : 'Cancel the pending payment record when the attempt will not continue.'}</span>
               </div>
               {targetStatus === 'PAID' && selected.method !== 'COD' && (
                 <label className="field">
@@ -360,6 +384,24 @@ export default function FinanceLedgerPage() {
                   <input className="input" required maxLength={180} value={reference} onChange={event => setReference(event.target.value)} placeholder="Enter the reference from the provider receipt" />
                   <span className="field-hint">Required for Mobile Money and card payments so the receipt can be reconciled later.</span>
                 </label>
+              )}
+              {targetStatus === 'FAILED' && (
+                <>
+                  <label className="field">
+                    <span className="field-label">Failure reason <span aria-hidden="true">*</span></span>
+                    <select className="select" required value={failureReason} onChange={event => setFailureReason(event.target.value)}>
+                      <option value="">Choose why the payment failed</option>
+                      {FAILURE_REASONS.map(reason => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
+                    </select>
+                    <span className="field-hint">This categorises the failure for reporting and helps the owner review repeated issues.</span>
+                  </label>
+                  {selected.method !== 'COD' && (
+                    <label className="field">
+                      <span className="field-label">Provider reference (if available)</span>
+                      <input className="input" maxLength={180} value={reference} onChange={event => setReference(event.target.value)} placeholder="Provider request ID or failed transaction reference" />
+                    </label>
+                  )}
+                </>
               )}
               {targetStatus === 'REFUNDED' && (
                 <label className="field">
@@ -374,8 +416,8 @@ export default function FinanceLedgerPage() {
                 </label>
               )}
               <label className="field">
-                <span className="field-label">{targetStatus === 'REFUNDED' ? 'Refund reason and record details' : targetStatus === 'PAID' ? 'Payment confirmation note' : 'Reason for status change'} <span aria-hidden="true">*</span></span>
-                <textarea className="textarea" rows={3} minLength={5} maxLength={500} required value={note} onChange={event => setNote(event.target.value)} placeholder={targetStatus === 'REFUNDED' ? 'Explain why the refund was made and how it was verified.' : targetStatus === 'PAID' ? 'Example: Matched to the MTN transaction and receipt on 22 Oct.' : 'Explain why this payment is being closed.'} />
+                <span className="field-label">{targetStatus === 'REFUNDED' ? 'Refund reason and record details' : targetStatus === 'PAID' ? 'Payment confirmation note' : targetStatus === 'FAILED' ? 'Failure details' : 'Cancellation reason'} <span aria-hidden="true">*</span></span>
+                <textarea className="textarea" rows={3} minLength={5} maxLength={500} required value={note} onChange={event => setNote(event.target.value)} placeholder={targetStatus === 'REFUNDED' ? 'Explain why the refund was made and how it was verified.' : targetStatus === 'PAID' ? 'Example: Matched to the MTN transaction and receipt on 22 Oct.' : targetStatus === 'FAILED' ? 'Example: Provider returned a declined response; customer was advised to retry.' : 'Explain why this pending payment is being cancelled.'} />
               </label>
               {(targetStatus === 'PAID' || targetStatus === 'REFUNDED') && (
                 <label className="finance-confirmation">
@@ -386,7 +428,7 @@ export default function FinanceLedgerPage() {
                 </label>
               )}
               <div className="row wrap finance-form-actions">
-                <Button type="submit" loading={saving} disabled={saving || note.trim().length < 5 || ((targetStatus === 'PAID' || targetStatus === 'REFUNDED') && !externalConfirmation)}>Save ledger change</Button>
+                <Button type="submit" loading={saving} disabled={saving || note.trim().length < 5 || (targetStatus === 'FAILED' && !failureReason) || ((targetStatus === 'PAID' || targetStatus === 'REFUNDED') && !externalConfirmation)}>{targetStatus === 'FAILED' ? 'Record failed payment' : 'Save ledger change'}</Button>
                 <Button type="button" variant="outline" disabled={saving} onClick={() => setTargetStatus(null)}>Cancel</Button>
               </div>
             </form>
@@ -412,6 +454,7 @@ export default function FinanceLedgerPage() {
                       <span className="muted tiny">{event.at ? formatDate(event.at, true) : 'Timestamp unavailable'}</span>
                     </div>
                     <p className="muted small">{event.note || 'No note was recorded.'}</p>
+                    {event.failureReason && <p className="finance-history-reason"><strong>Failure reason:</strong> {failureReasonLabel(event.failureReason)}</p>}
                     <span className="muted tiny">By {event.actor}{event.providerRef ? ` · Payment ref: ${event.providerRef}` : ''}{event.refundReference ? ` · Refund ref: ${event.refundReference}` : ''}</span>
                   </li>
                 ))}
