@@ -137,6 +137,38 @@ class AdminAndCartTests(TestCase):
         response = self.client.post("/api/cart", data='{"cartId":"t1"}', content_type="application/json")
         self.assertEqual(response.status_code, 400)
 
+    def test_cart_rejects_quantity_above_stock_without_mutating_cart(self):
+        response = self.client.post(
+            "/api/cart",
+            data='{"cartId":"stock-check","productId":"%s","quantity":11}' % self.product.id,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(Cart.objects.filter(id="stock-check").exists())
+
+    def test_checkout_rejects_empty_cart_without_creating_order(self):
+        response = self.client.post(
+            "/api/checkout",
+            data='{"cartId":"empty-checkout","customerName":"Test Buyer","phone":"0788123456","deliveryAddress":"Kabarondo"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("empty", response.json()["error"].lower())
+        self.assertFalse(StoreOrder.objects.filter(customer_name="Test Buyer").exists())
+
+    def test_checkout_rejects_invalid_phone_without_creating_order(self):
+        response = self.client.post(
+            "/api/checkout",
+            data='{"cartId":"invalid-phone","customerName":"Test Buyer","phone":"abc","deliveryAddress":"Kabarondo"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(StoreOrder.objects.filter(customer_name="Test Buyer").exists())
+
+    def test_customer_wishlist_requires_authenticated_customer(self):
+        response = self.client.get("/api/wishlist")
+        self.assertEqual(response.status_code, 401)
+
 
 class ProductFilterRegressionTests(TestCase):
     """Slugs and junk in UUID-typed filters must never crash the API (they once returned HTTP 500)."""
