@@ -580,3 +580,39 @@ class FinanceLedgerTests(TestCase):
         })
         self.assertEqual(response.status_code, 409, response.content)
         self.assertEqual(response.json()["error"][:7], "This pa")
+
+
+    def test_failed_payment_requires_a_structured_reason(self):
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "FAILED",
+            "note": "Provider declined the payment",
+        })
+        self.assertEqual(response.status_code, 400, response.content)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "PENDING")
+
+    def test_failed_payment_is_recorded_with_reason_and_reference_in_audit(self):
+        from .models import AuditLog
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "FAILED",
+            "note": "Provider returned a declined response",
+            "failureReason": "PROVIDER_DECLINED",
+            "providerRef": "MOMO-FAIL-123",
+        })
+        self.assertEqual(response.status_code, 200, response.content)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "FAILED")
+        self.assertEqual(self.payment.provider_ref, "MOMO-FAIL-123")
+        event = AuditLog.objects.get(entity_type="PaymentRecord", entity_id=str(self.payment.id))
+        self.assertEqual(event.action, "payment.failed")
+        self.assertEqual(event.metadata["failureReason"], "PROVIDER_DECLINED")
+        self.assertEqual(event.metadata["note"], "Provider returned a declined response")
+
+        response = self.client.get(
+            "/api/admin/finance?status=FAILED&q=GW-FINANCE-TEST-1",
+            **self.headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        entry = response.json()["payments"][0]
+        self.assertEqual(entry["status"], "FAILED")
+        self.assertEqual(entry["history"][0]["failureReason"], "PROVIDER_DECLINED")
