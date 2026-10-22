@@ -187,6 +187,112 @@ def payment_dto(payment):
     }
 
 
+def finance_payment_dto(payment, history=None):
+    order = payment.order
+    return {
+        "id": str(payment.id), "orderId": str(order.id),
+        "orderNumber": order.order_number, "customerName": order.customer_name,
+        "customerPhone": order.phone, "customerEmail": order.customer_email,
+        "orderStatus": order.status, "orderTotalRwf": order.total_rwf,
+        "method": payment.method, "status": payment.status,
+        "amountRwf": payment.amount_rwf, "currency": payment.currency,
+        "provider": payment.provider, "providerRef": payment.provider_ref,
+        "createdAt": iso(payment.created_at), "updatedAt": iso(payment.updated_at),
+        "orderCreatedAt": iso(order.created_at), "history": history or [],
+    }
+
+
+def payment_history_event(entry):
+    details = entry.metadata if isinstance(entry.metadata, dict) else {}
+    return {
+        "id": str(entry.id), "action": entry.action,
+        "at": iso(entry.created_at),
+        "actor": "Owner" if entry.actor_type == "ADMIN" else "System",
+        "fromStatus": details.get("fromStatus"),
+        "toStatus": details.get("toStatus"),
+        "note": details.get("note", ""),
+        "providerRef": details.get("providerRef", ""),
+        "refundReference": details.get("refundReference", ""),
+        "confirmedExternally": bool(details.get("confirmedExternally", False)),
+    }
+
+
+def admin_payment_transition(request, body):
+    """Record an owner-verified payment ledger transition; never initiates a transfer."""
+    blocked = require_admin(request)
+    if blocked:
+        return blocked
+    if not same_origin_guard(request):
+        return j({"error": "Cross-origin finance updates are not allowed"}, 403)
+
+    target = clean(body.get("status"), 12).upper()
+    if target not in {PaymentRecord.Status.PAID, PaymentRecord.Status.REFUNDED,
+                      PaymentRecord.Status.CANCELLED, PaymentRecord.Status.FAILED}:
+        return j({"error": "Choose a supported payment status"}, 400)
+    note = clean(body.get("note"), 500)
+    if len(note) < 5:
+        return j({"error": "Add a finance note of at least 5 characters for the audit trail"}, 400)
+    confirmed_externally = body.get("externalConfirmation") is True
+    if target in {PaymentRecord.Status.PAID, PaymentRecord.Status.REFUNDED} and not confirmed_externally:
+        return j({"error": "Confirm that the money was actually received or the refund was already processed outside this website"}, 400)
+
+    provider_ref = clean(body.get("providerRef"), 180)
+    payment_uuid = as_uuid(body.get("id"))
+    order_number = clean(body.get("orderNumber"), 48)
+    if not payment_uuid and not order_number:
+        return j({"error": "Payment ID or order number is required"}, 400)
+
+    with transaction.atomic():
+        qs = PaymentRecord.objects.select_for_update().select_related("order")
+        payment = (qs.filter(id=payment_uuid).first() if payment_uuid else
+                   qs.filter(order__order_number=order_number).first())
+        if not payment:
+            return j({"error": "Payment record not found"}, 404)
+
+        allowed_transitions = {
+            PaymentRecord.Status.PENDING: {
+                PaymentRecord.Status.PAID,
+                PaymentRecord.Status.CANCELLED,
+                PaymentRecord.Status.FAILED,
+            },
+            PaymentRecord.Status.PAID: {PaymentRecord.Status.REFUNDED},
+        }
+        if target not in allowed_transitions.get(payment.status, set()):
+            return j({"error": "This payment status cannot be changed that way. Review the current status and use a valid transition."}, 409)
+        if target == PaymentRecord.Status.PAID and payment.method in {
+            PaymentRecord.Method.MOMO, PaymentRecord.Method.AIRTEL, PaymentRecord.Method.CARD,
+        } and not provider_ref:
+            return j({"error": "Enter the verified transaction reference for Mobile Money or card payments"}, 400)
+
+        previous = payment.status
+        if target == PaymentRecord.Status.PAID and provider_ref:
+            payment.provider_ref = provider_ref
+        payment.status = target
+        payment.save(update_fields=["status", "provider_ref", "updated_at"])
+
+        event_details = {
+            "fromStatus": previous, "toStatus": target, "note": note,
+            "confirmedExternally": confirmed_externally,
+        }
+        if target == PaymentRecord.Status.REFUNDED:
+            event_details["refundReference"] = provider_ref
+        elif provider_ref:
+            event_details["providerRef"] = provider_ref
+        event = AuditLog.objects.create(
+            actor_type="ADMIN", actor_id=admin_id(request) or "admin",
+            action="payment." + target.lower(),
+            entity_type="PaymentRecord", entity_id=str(payment.id),
+            metadata=event_details,
+        )
+        payment.refresh_from_db()
+        return j({
+            "payment": finance_payment_dto(payment, [payment_history_event(event)]),
+            "message": "Payment ledger updated. This records a verified external action; it does not move money.",
+        })
+
+
+
+
 def order_dto(order, seller_id=None):
     items_qs = order.items.select_related("product", "seller").all()
     if seller_id:
@@ -1280,7 +1386,16 @@ def _api_dispatch(request, resource=""):
                         unit_price_rwf=product.price_rwf, quantity=cart_item.quantity,
                         line_total_rwf=product.price_rwf * cart_item.quantity,
                     )
-                PaymentRecord.objects.create(order=order, method=payment_method, amount_rwf=order.total_rwf)
+                payment = PaymentRecord.objects.create(order=order, method=payment_method, amount_rwf=order.total_rwf)
+                AuditLog.objects.create(
+                    actor_type="SYSTEM", actor_id="checkout", action="payment.created",
+                    entity_type="PaymentRecord", entity_id=str(payment.id),
+                    metadata={
+                        "fromStatus": None, "toStatus": PaymentRecord.Status.PENDING,
+                        "note": "Payment record created when the customer placed the order.",
+                        "confirmedExternally": False,
+                    },
+                )
                 CartItem.objects.filter(cart=cart).delete()
             order.refresh_from_db()
             return j({"order": order_dto(order)}, 201)
@@ -1646,21 +1761,67 @@ def _api_dispatch(request, resource=""):
             row.pop("_guestKey", None)
         return j({"customers": customers})
 
-    if path == "admin/finance" and method == "GET":
-        blocked = require_admin(request)
-        if blocked:
-            return blocked
-        def sum_status(status):
-            return PaymentRecord.objects.filter(status=status).aggregate(total=Sum("amount_rwf"))["total"] or 0
-        summary = {
-            "paidRwf": sum_status(PaymentRecord.Status.PAID),
-            "pendingRwf": sum_status(PaymentRecord.Status.PENDING),
-            "refundedRwf": sum_status(PaymentRecord.Status.REFUNDED),
-            "cancelledRwf": sum_status(PaymentRecord.Status.CANCELLED),
-            "orders": StoreOrder.objects.count(),
-        }
-        return j({**summary, "summary": summary, "paymentCount": PaymentRecord.objects.count(),
-                  "providerIntegration": "not_configured"})
+    if path == "admin/finance":
+        if method == "GET":
+            blocked = require_admin(request)
+            if blocked:
+                return blocked
+
+            def sum_status(status):
+                return PaymentRecord.objects.filter(status=status).aggregate(total=Sum("amount_rwf"))["total"] or 0
+
+            summary = {
+                "paidRwf": sum_status(PaymentRecord.Status.PAID),
+                "pendingRwf": sum_status(PaymentRecord.Status.PENDING),
+                "refundedRwf": sum_status(PaymentRecord.Status.REFUNDED),
+                "cancelledRwf": sum_status(PaymentRecord.Status.CANCELLED),
+                "failedRwf": sum_status(PaymentRecord.Status.FAILED),
+                "orders": StoreOrder.objects.count(),
+            }
+            status_filter = clean(request.GET.get("status"), 12).upper()
+            if status_filter and status_filter != "ALL":
+                if status_filter not in PaymentRecord.Status.values:
+                    return j({"error": "Unknown payment status filter"}, 400)
+                payments_qs = PaymentRecord.objects.filter(status=status_filter)
+            else:
+                payments_qs = PaymentRecord.objects.all()
+
+            query = clean(request.GET.get("q"), 160)
+            if query:
+                payments_qs = payments_qs.filter(
+                    Q(order__order_number__icontains=query) |
+                    Q(order__customer_name__icontains=query) |
+                    Q(order__phone__icontains=query) |
+                    Q(order__customer_email__icontains=query) |
+                    Q(provider_ref__icontains=query) |
+                    Q(provider__icontains=query) |
+                    Q(method__icontains=query)
+                )
+            total_payments = payments_qs.count()
+            try:
+                page = max(1, int(request.GET.get("page", "1")))
+                page_size = min(100, max(1, int(request.GET.get("pageSize", "25"))))
+            except (TypeError, ValueError):
+                page, page_size = 1, 25
+            payments = list(payments_qs.select_related("order").order_by("-updated_at", "-created_at")[
+                (page - 1) * page_size:page * page_size
+            ])
+            payment_ids = [str(payment.id) for payment in payments]
+            history_by_id = {payment_id: [] for payment_id in payment_ids}
+            events = AuditLog.objects.filter(
+                entity_type="PaymentRecord", entity_id__in=payment_ids
+            ).order_by("created_at")
+            for event in events:
+                history_by_id.setdefault(event.entity_id, []).append(payment_history_event(event))
+            return j({
+                "summary": summary, **summary,
+                "payments": [finance_payment_dto(payment, history_by_id.get(str(payment.id), [])) for payment in payments],
+                "paymentCount": PaymentRecord.objects.count(),
+                "totalPayments": total_payments, "page": page, "pageSize": page_size,
+                "providerIntegration": "not_configured",
+            })
+        if method == "PATCH":
+            return admin_payment_transition(request, body)
 
     if path == "admin/settings":
         blocked = require_admin(request)
@@ -1956,21 +2117,7 @@ def _api_dispatch(request, resource=""):
             return j({"payment": payment_dto(order.payment), "providerIntegration": "not_configured",
                       "message": "Online payment is not active. The order is awaiting payment by an enabled method."}, 202)
         if method == "PATCH":
-            blocked = require_admin(request)
-            if blocked:
-                return blocked
-            payment = PaymentRecord.objects.filter(Q(id=body.get("id")) | Q(order__order_number=body.get("orderNumber"))).first()
-            status_value = clean(body.get("status"), 12).upper()
-            if not payment or status_value not in PaymentRecord.Status.values:
-                return j({"error": "Payment or payment status is invalid"}, 400)
-            # Never mark a remote transaction as paid without a verified provider webhook.
-            if status_value == PaymentRecord.Status.PAID and not body.get("verifiedProviderReference"):
-                return j({"error": "A verified provider reference is required to mark an online payment as paid"}, 409)
-            payment.status = status_value
-            if body.get("providerRef"):
-                payment.provider_ref = clean(body.get("providerRef"), 180)
-            payment.save()
-            return j({"payment": payment_dto(payment)})
+            return admin_payment_transition(request, body)
 
     if path.startswith("seller/") and path not in {"seller/auth/login", "seller/auth/logout"}:
         # Reject unknown seller endpoints instead of leaking a generic public response.
