@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { DashHeader, StatCard } from '@/components/dash/DashShell';
 import { Button } from '@/components/ui/Button';
@@ -145,6 +145,7 @@ export default function FinanceLedgerPage() {
   const [externalConfirmation, setExternalConfirmation] = useState(false);
   const [failureReason, setFailureReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const detailPanelRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
@@ -166,6 +167,16 @@ export default function FinanceLedgerPage() {
     void load(controller.signal);
     return () => controller.abort();
   }, [load, reloadKey]);
+
+  useEffect(() => {
+    if (!selected) return;
+    // The detail panel is rendered after the full ledger table; bring it into view
+    // whenever a row action or History opens it so the click has immediate feedback.
+    const frame = window.requestAnimationFrame(() => {
+      detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selected?.id, targetStatus]);
 
   const summary = data?.summary;
   const currentRange = useMemo(() => {
@@ -366,7 +377,7 @@ export default function FinanceLedgerPage() {
       </section>
 
       {selected && (
-        <section className="card finance-detail-panel" aria-labelledby="finance-detail-title">
+        <section ref={detailPanelRef} className="card finance-detail-panel" aria-labelledby="finance-detail-title">
           <div className="card-head finance-ledger-head">
             <div>
               <span className="eyebrow">Payment record</span>
