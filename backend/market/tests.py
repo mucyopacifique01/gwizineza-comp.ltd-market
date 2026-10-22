@@ -274,6 +274,11 @@ class GoogleLoginSuccessTests(TestCase):
         })
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["customer"]["email"], "buyer@example.com")
+        self.assertIn("gwizineza_customer_session", response.cookies)
+        self.assertTrue(response.cookies["gwizineza_customer_session"]["httponly"])
+        session = self.client.get("/api/customer/me")
+        self.assertEqual(session.status_code, 200, session.content)
+        self.assertEqual(session.json()["customer"]["email"], "buyer@example.com")
 
     def test_wrapped_user_object_still_signs_in(self):
         response = self._login({"user": {"id": "22222222-2222-2222-2222-222222222222", "email": "wrapped@example.com"}})
