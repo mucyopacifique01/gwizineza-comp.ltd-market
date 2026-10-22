@@ -202,7 +202,14 @@ export default function FinanceLedgerPage() {
           externalConfirmation,
         }),
       });
-      setSelected(result.payment);
+      setSelected(current => {
+        const latestEvent = result.payment.history?.[0];
+        const priorHistory = current?.id === result.payment.id ? (current.history ?? []) : [];
+        const history = latestEvent
+          ? [...priorHistory.filter(event => event.id !== latestEvent.id), latestEvent]
+          : priorHistory;
+        return { ...result.payment, history };
+      });
       setTargetStatus(null);
       setNote('');
       setReference('');
@@ -297,6 +304,7 @@ export default function FinanceLedgerPage() {
                           {payment.status === 'PENDING' && <>
                             <Button size="sm" onClick={() => startTransition(payment, 'PAID')} icon="check">Confirm paid</Button>
                             <Button size="sm" variant="outline" onClick={() => startTransition(payment, 'CANCELLED')}>Cancel</Button>
+                            <Button size="sm" variant="ghost" onClick={() => startTransition(payment, 'FAILED')}>Record failed</Button>
                           </>}
                           {payment.status === 'PAID' && <Button size="sm" variant="outline" onClick={() => startTransition(payment, 'REFUNDED')} icon="refresh">Record refund</Button>}
                           {['FAILED', 'CANCELLED'].includes(payment.status) && <span className="muted tiny">Closed</span>}
@@ -342,7 +350,9 @@ export default function FinanceLedgerPage() {
             <form className="finance-action-form" onSubmit={event => void saveTransition(event)}>
               <div className="alert alert-warn" role="note">
                 <Icon name="alert" size={18} />
-                <span><strong>{transitionLabel(targetStatus)}.</strong> This is a ledger action only. Complete or verify the real cash/mobile-money/card transaction outside this website first.</span>
+                <span><strong>{transitionLabel(targetStatus)}.</strong> {(targetStatus === 'PAID' || targetStatus === 'REFUNDED')
+                  ? 'This is a ledger action only. Verify the actual receipt or completed refund outside this website first.'
+                  : 'This records the reason for closing a pending payment. It does not start, cancel or verify a transaction with a payment provider.'}</span>
               </div>
               {targetStatus === 'PAID' && selected.method !== 'COD' && (
                 <label className="field">
