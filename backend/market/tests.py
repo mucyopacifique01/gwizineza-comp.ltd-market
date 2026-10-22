@@ -1,6 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from .models import Cart, Category, NewsletterSubscriber, Product, StoreOrder
+from django.core import signing
+from .models import (AuditLog, Cart, Category, CustomerProfile, NewsletterSubscriber, PaymentRecord, Product, Seller, StoreOrder, StoreOrderItem)
 
 
 class MarketApiTests(TestCase):
@@ -130,6 +131,14 @@ class AdminAndCartTests(TestCase):
         payload = response.json()["order"]
         self.assertEqual(payload["customerName"], "Test Buyer")
         self.assertEqual(payload["subtotalRwf"], 10000)
+        self.assertTrue(payload["orderNumber"].startswith("GW-"))
+        order = StoreOrder.objects.get(order_number=payload["orderNumber"])
+        self.assertEqual(order.items.count(), 1)
+        item = order.items.get()
+        self.assertEqual(item.product_id, self.product.id)
+        self.assertEqual(item.quantity, 2)
+        self.assertEqual(item.line_total_rwf, 10000)
+        self.assertEqual(order.payment.status, PaymentRecord.Status.PENDING)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 8)
 
@@ -696,3 +705,195 @@ class NewsletterSubscriptionTests(TestCase):
     def test_newsletter_subscription_requires_post(self):
         response = self.client.get("/api/newsletter/subscribe")
         self.assertEqual(response.status_code, 405)
+
+
+
+class CustomerWishlistPersistenceTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.customer = CustomerProfile.objects.create(
+            supabase_user_id="wishlist-test-user",
+            name="Wishlist Buyer",
+            email="wishlist@example.com",
+        )
+        self.product = Product.objects.create(
+            sku="WISH-1", name="Saved Umbrella", slug="saved-umbrella",
+            price_rwf=2800, stock=5, is_active=True,
+        )
+        token = signing.dumps(str(self.customer.id), salt="gwizineza-customer")
+        self.client.cookies["gwizineza_customer_session"] = token
+
+    def test_customer_can_save_and_remove_wishlist_item(self):
+        saved = self.client.post(
+            "/api/wishlist",
+            data='{"productId":"%s"}' % self.product.id,
+            content_type="application/json",
+        )
+        self.assertEqual(saved.status_code, 201, saved.content)
+        self.assertEqual(saved.json()["item"]["productId"], str(self.product.id))
+        self.assertEqual(self.customer.wishlist_items.count(), 1)
+
+        listed = self.client.get("/api/wishlist")
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual([x["product"]["id"] for x in listed.json()["items"]], [str(self.product.id)])
+
+        removed = self.client.delete(
+            "/api/wishlist",
+            data='{"productId":"%s"}' % self.product.id,
+            content_type="application/json",
+        )
+        self.assertEqual(removed.status_code, 200, removed.content)
+        self.assertEqual(self.customer.wishlist_items.count(), 0)
+
+
+class SellerProductWorkflowTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.seller = Seller.objects.create(
+            business_name="Test Seller", owner_name="Test Owner",
+            phone="+250788123456", email="seller@example.com",
+            login_username="test-seller", status=Seller.Status.APPROVED,
+        )
+        self.other_seller = Seller.objects.create(
+            business_name="Other Seller", owner_name="Other Owner",
+            phone="+250788123457", email="other@example.com",
+            login_username="other-seller", status=Seller.Status.APPROVED,
+        )
+        self.product = Product.objects.create(
+            sku="SELLER-1", name="Seller Product", slug="seller-product",
+            price_rwf=4000, stock=3, seller=self.seller,
+        )
+        self.client.cookies["gwizineza_seller_session"] = signing.dumps(
+            str(self.seller.id), salt="gwizineza-seller"
+        )
+
+    def test_seller_can_update_own_product_stock_and_visibility(self):
+        stock_response = self.client.patch(
+            "/api/seller/products",
+            data='{"id":"%s","stock":9}' % self.product.id,
+            content_type="application/json",
+        )
+        self.assertEqual(stock_response.status_code, 200, stock_response.content)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 9)
+
+        visibility_response = self.client.patch(
+            "/api/seller/products",
+            data='{"id":"%s","isActive":false}' % self.product.id,
+            content_type="application/json",
+        )
+        self.assertEqual(visibility_response.status_code, 200, visibility_response.content)
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.is_active)
+
+    def test_seller_cannot_edit_another_sellers_product(self):
+        other_product = Product.objects.create(
+            sku="SELLER-2", name="Private Product", slug="private-product",
+            price_rwf=1000, stock=2, seller=self.other_seller,
+        )
+        response = self.client.patch(
+            "/api/seller/products",
+            data='{"id":"%s","stock":99}' % other_product.id,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+        other_product.refresh_from_db()
+        self.assertEqual(other_product.stock, 2)
+
+
+class OrderStatusWorkflowTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.order = StoreOrder.objects.create(
+            order_number="GW-TEST-STATUS-1", customer_name="Order Buyer",
+            phone="+250788123456", delivery_address="Kigali",
+            subtotal_rwf=5000, delivery_rwf=0, total_rwf=5000,
+            status=StoreOrder.Status.ORDERED,
+        )
+        with self.settings(ADMIN_PASSWORD="owner-secret"):
+            login = self.client.post(
+                "/api/admin/login", data='{"password":"owner-secret"}',
+                content_type="application/json",
+            )
+        self.assertEqual(login.status_code, 200)
+
+    def test_admin_can_update_order_status_and_it_persists(self):
+        response = self.client.patch(
+            "/api/admin/orders",
+            data='{"id":"%s","status":"PROCESSING"}' % self.order.id,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, StoreOrder.Status.PROCESSING)
+        self.assertEqual(response.json()["order"]["status"], "PROCESSING")
+
+
+class AdminPaymentLedgerWorkflowTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.order = StoreOrder.objects.create(
+            order_number="GW-TEST-PAYMENT-1", customer_name="Finance Buyer",
+            phone="+250788123456", delivery_address="Kigali",
+            subtotal_rwf=12000, delivery_rwf=1000, total_rwf=13000,
+        )
+        self.payment = PaymentRecord.objects.create(
+            order=self.order, method=PaymentRecord.Method.COD,
+            status=PaymentRecord.Status.PENDING, amount_rwf=13000,
+        )
+        with self.settings(ADMIN_PASSWORD="owner-secret"):
+            login = self.client.post(
+                "/api/admin/login", data='{"password":"owner-secret"}',
+                content_type="application/json",
+            )
+        self.assertEqual(login.status_code, 200)
+        self.headers = {"HTTP_ORIGIN": "http://testserver", "HTTP_HOST": "testserver"}
+
+    def transition(self, status, **extra):
+        import json
+        body = {"id": str(self.payment.id), "status": status, "note": "Verified by finance"}
+        body.update(extra)
+        return self.client.patch(
+            "/api/admin/finance", data=json.dumps(body),
+            content_type="application/json", **self.headers,
+        )
+
+    def test_payment_confirmation_requires_external_confirmation_and_is_audited(self):
+        rejected = self.transition("PAID")
+        self.assertEqual(rejected.status_code, 400)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentRecord.Status.PENDING)
+
+        confirmed = self.transition("PAID", externalConfirmation=True)
+        self.assertEqual(confirmed.status_code, 200, confirmed.content)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentRecord.Status.PAID)
+        self.assertTrue(AuditLog.objects.filter(
+            entity_id=str(self.payment.id), action="payment.paid"
+        ).exists())
+
+    def test_refund_requires_paid_status_and_is_audited(self):
+        premature = self.transition("REFUNDED", externalConfirmation=True)
+        self.assertEqual(premature.status_code, 409)
+
+        self.transition("PAID", externalConfirmation=True)
+        refunded = self.transition(
+            "REFUNDED", externalConfirmation=True, providerRef="REFUND-TEST-123"
+        )
+        self.assertEqual(refunded.status_code, 200, refunded.content)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentRecord.Status.REFUNDED)
+        self.assertTrue(AuditLog.objects.filter(
+            entity_id=str(self.payment.id), action="payment.refunded"
+        ).exists())
+
+    def test_pending_payment_cancellation_persists_and_cannot_be_marked_paid_afterward(self):
+        cancelled = self.transition("CANCELLED")
+        self.assertEqual(cancelled.status_code, 200, cancelled.content)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentRecord.Status.CANCELLED)
+
+        invalid = self.transition("PAID", externalConfirmation=True)
+        self.assertEqual(invalid.status_code, 409)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentRecord.Status.CANCELLED)
