@@ -124,6 +124,10 @@ function relativeStatus(payment: LedgerPayment) {
   return 'Payment failed';
 }
 
+function latestFailureReason(payment: LedgerPayment) {
+  return [...(payment.history ?? [])].reverse().find(event => event.toStatus === 'FAILED')?.failureReason;
+}
+
 export default function FinanceLedgerPage() {
   const toast = useToast();
   const [data, setData] = useState<LedgerResponse | null>(null);
@@ -317,7 +321,13 @@ export default function FinanceLedgerPage() {
                         {payment.providerRef && <span className="muted tiny finance-reference">Ref: {payment.providerRef}</span>}
                       </td>
                       <td className="num"><strong>{formatRwf(payment.amountRwf)}</strong><span className="muted tiny finance-reference">Order: {formatRwf(payment.orderTotalRwf)}</span></td>
-                      <td><StatusPill status={payment.status} /><span className="muted tiny finance-reference">{relativeStatus(payment)}</span></td>
+                      <td>
+                        <StatusPill status={payment.status} />
+                        <span className="muted tiny finance-reference">{relativeStatus(payment)}</span>
+                        {payment.status === 'FAILED' && latestFailureReason(payment) && (
+                          <span className="finance-row-failure-reason">Reason: {failureReasonLabel(latestFailureReason(payment))}</span>
+                        )}
+                      </td>
                       <td><span>{formatDate(payment.updatedAt, true)}</span><span className="muted tiny finance-reference">Created {formatDate(payment.createdAt, true)}</span></td>
                       <td>
                         <div className="finance-row-actions">
