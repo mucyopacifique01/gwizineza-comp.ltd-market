@@ -222,9 +222,16 @@ function AdminCms(){
 
 function AdminSupport(){
  const s=useJson<{tickets:Ticket[]}>('/api/admin/support','/admin/login');
- async function change(id:string,status:string){try{await request('/api/admin/support',{method:'PATCH',body:JSON.stringify({id,status})},'/admin/login');s.reload()}catch{}}
+ const [savingId,setSavingId]=useState('');
+ const [actionError,setActionError]=useState('');
+ async function change(id:string,status:string){
+  setSavingId(id); setActionError('');
+  try { await request('/api/admin/support',{method:'PATCH',body:JSON.stringify({id,status})},'/admin/login'); s.reload(); }
+  catch(e) { setActionError(e instanceof Error?e.message:'Could not update this support ticket. Please try again.'); }
+  finally { setSavingId(''); }
+ }
  if(s.loading&&!s.data)return <LoadingBlock/>; if(s.error)return <ErrorBlock error={s.error} retry={s.reload}/>;
- return <section className="fig-panel"><h2>{s.data!.tickets.length} support ticket{s.data!.tickets.length===1?'':'s'}</h2>{s.data!.tickets.length?<div className="table-wrap"><table className="table"><thead><tr><th>Subject</th><th>Customer</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead><tbody>{s.data!.tickets.map(t=><tr key={t.id}><td><strong>{t.subject}</strong><div className="muted tiny">{t.message.slice(0,100)}</div></td><td>{t.customer?.name||'Guest'}</td><td>{t.priority}</td><td><select className="select select-sm" value={t.status} onChange={e=>void change(t.id,e.target.value)}><option>OPEN</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>CLOSED</option></select></td><td>{formatDate(t.updatedAt,true)}</td></tr>)}</tbody></table></div>:<div className="fig-empty"><Icon name="users" size={34}/><h3>No support tickets</h3><p>Customer requests will appear here when submitted.</p></div>}</section>;
+ return <section className="fig-panel"><h2>{s.data!.tickets.length} support ticket{s.data!.tickets.length===1?'':'s'}</h2>{actionError&&<p className="alert alert-error" role="alert">{actionError}</p>}{s.data!.tickets.length?<div className="table-wrap"><table className="table"><thead><tr><th>Subject</th><th>Customer</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead><tbody>{s.data!.tickets.map(t=><tr key={t.id}><td><strong>{t.subject}</strong><div className="muted tiny">{t.message.slice(0,100)}</div></td><td>{t.customer?.name||'Guest'}</td><td>{t.priority}</td><td><select className="select select-sm" value={t.status} disabled={savingId===t.id} aria-label={'Status for '+t.subject} onChange={e=>void change(t.id,e.target.value)}><option>OPEN</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>CLOSED</option></select>{savingId===t.id&&<span className="muted tiny"> Saving…</span>}</td><td>{formatDate(t.updatedAt,true)}</td></tr>)}</tbody></table></div>:<div className="fig-empty"><Icon name="users" size={34}/><h3>No support tickets</h3><p>Customer requests will appear here when submitted.</p></div>}</section>;
 }
 
 export function FigmaMarketplacePage({kind,products=[]}:{kind:Kind;products?:ProductDTO[]}){
