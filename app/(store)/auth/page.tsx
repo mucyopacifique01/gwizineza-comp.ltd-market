@@ -27,6 +27,7 @@ export default function AuthPage() {
   const [step, setStep] = useState<Step>('contact');
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
+  const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [checking, setChecking] = useState(true);
@@ -109,8 +110,13 @@ export default function AuthPage() {
       setError('Enter your full name before requesting a code.');
       return;
     }
-    if (!contact.trim()) {
-      setError('Enter your email address or phone number.');
+    const email = contact.trim().toLowerCase();
+    if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+      setError('Enter a valid email address. Your verification code will be sent to this email.');
+      return;
+    }
+    if (mode === 'signup' && !phone.trim()) {
+      setError('Enter your mobile number, including the country code (for example, +250 78 123 4567).');
       return;
     }
     setLoading(true);
@@ -118,12 +124,12 @@ export default function AuthPage() {
       const response = await fetch('/api/customer/auth/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: contact.trim(), name: name.trim() || undefined, createUser: mode === 'signup' }),
+        body: JSON.stringify({ contact: email, email, phone: mode === 'signup' ? phone.trim() : undefined, name: name.trim() || undefined, createUser: mode === 'signup' }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'We could not send your verification code.');
       setStep('verify');
-      setMessage('We sent a one-time code. Check your email inbox or phone messages.');
+      setMessage('We sent a verification code to ' + email + '. Check your inbox and spam folder.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'We could not send your verification code.');
     } finally {
@@ -147,7 +153,7 @@ export default function AuthPage() {
       const response = await fetch('/api/customer/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: contact.trim(), code: code.trim(), name: name.trim() || undefined }),
+        body: JSON.stringify({ contact: contact.trim().toLowerCase(), email: contact.trim().toLowerCase(), phone: mode === 'signup' ? phone.trim() : undefined, code: code.trim(), name: name.trim() || undefined }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'That code could not be verified.');
@@ -155,6 +161,7 @@ export default function AuthPage() {
       window.dispatchEvent(new Event('gwizineza-auth-changed'));
       setMessage('You are signed in securely.');
       setContact('');
+      setPhone('');
       setCode('');
       setName('');
       setStep('contact');
@@ -188,7 +195,7 @@ export default function AuthPage() {
     }
   }
 
-  const isEmail = contact.includes('@');
+  const isEmail = true;
 
   return (
     <div className="container auth-page fig-auth-page">
@@ -226,26 +233,38 @@ export default function AuthPage() {
               </>
             )}
             <div className="alert" role="note">
-              <Icon name="shield" size={16} /> No password is used. We verify your email address or mobile number with a one-time code.
+              <Icon name="shield" size={16} /> No password is needed. We send a one-time verification code to your email address.
             </div>
             <form className="stack" onSubmit={submit}>
               {mode === 'signup' && step === 'contact' && (
-                <TextField label="Full name" required minLength={2} value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
+                <>
+                  <TextField label="Full name" required minLength={2} value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
+                  <TextField
+                    label="Mobile number"
+                    required
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="+250 78 123 4567"
+                    autoComplete="tel"
+                    type="tel"
+                    hint="Include your country code so we can save your contact number correctly."
+                  />
+                </>
               )}
               {step === 'contact' ? (
                 <TextField
-                  label="Email address or phone number"
+                  label="Email address"
                   required
                   value={contact}
                   onChange={e => setContact(e.target.value)}
-                  placeholder="you@example.com or +250 7XX XXX XXX"
+                  placeholder="you@example.com"
                   autoComplete="email"
-                  type="text"
-                  hint="For Rwanda, use a number such as +250 78 123 4567."
+                  type="email"
+                  hint="Your one-time verification code will be sent to this email."
                 />
               ) : (
                 <>
-                  <div className="alert alert-success">Code sent to {contact}. Check your {isEmail ? 'inbox and spam folder' : 'SMS messages'}.</div>
+                  <div className="alert alert-success">Code sent to {contact}. Check your email inbox and spam folder. Enter the code below to open your account.</div>
                   <TextField
                     label="One-time verification code"
                     required
@@ -256,13 +275,13 @@ export default function AuthPage() {
                     autoComplete="one-time-code"
                     autoFocus
                   />
-                  <button type="button" className="link-arrow" onClick={sendCode} disabled={loading}>Send a new code</button>
+                  <button type="button" className="link-arrow" onClick={sendCode} disabled={loading}>Resend email code</button>
                 </>
               )}
               <Button type="submit" size="lg" block loading={loading}>
                 {loading ? 'Please wait…' : step === 'contact' ? 'Send verification code' : 'Verify and sign in'}
               </Button>
-              {step === 'verify' && <Button variant="outline" type="button" block onClick={() => { setStep('contact'); setCode(''); clear(); }}>Change email or phone</Button>}
+              {step === 'verify' && <Button variant="outline" type="button" block onClick={() => { setStep('contact'); setCode(''); clear(); }}>Change email address</Button>}
             </form>
           </div>
         )}
