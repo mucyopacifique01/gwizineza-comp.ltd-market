@@ -115,9 +115,12 @@ export default function AuthPage() {
       setError('Enter a valid email address. Your verification code will be sent to this email.');
       return;
     }
-    if (mode === 'signup' && !phone.trim()) {
-      setError('Enter your mobile number, including the country code (for example, +250 78 123 4567).');
-      return;
+    if (mode === 'signup') {
+      const phoneDigits = phone.replace(/\\D/g, '');
+      if (phoneDigits.length < 9 || phoneDigits.length > 15) {
+        setError('Enter a valid mobile number, including the country code (for example, +250 78 123 4567).');
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -247,7 +250,7 @@ export default function AuthPage() {
                     placeholder="+250 78 123 4567"
                     autoComplete="tel"
                     type="tel"
-                    hint="Include your country code so we can save your contact number correctly."
+                    hint="Include your country code. Email is verified by OTP; this number is saved as your contact number."
                   />
                 </>
               )}
