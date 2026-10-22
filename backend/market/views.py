@@ -213,6 +213,7 @@ def payment_history_event(entry):
         "note": details.get("note", ""),
         "providerRef": details.get("providerRef", ""),
         "refundReference": details.get("refundReference", ""),
+        "failureReason": details.get("failureReason", ""),
         "confirmedExternally": bool(details.get("confirmedExternally", False)),
     }
 
@@ -237,6 +238,13 @@ def admin_payment_transition(request, body):
         return j({"error": "Confirm that the money was actually received or the refund was already processed outside this website"}, 400)
 
     provider_ref = clean(body.get("providerRef"), 180)
+    failure_reason = clean(body.get("failureReason"), 32).upper()
+    valid_failure_reasons = {
+        "PROVIDER_DECLINED", "INSUFFICIENT_FUNDS", "CUSTOMER_ABORTED",
+        "TIMEOUT", "REFERENCE_MISMATCH", "OTHER",
+    }
+    if target == PaymentRecord.Status.FAILED and failure_reason not in valid_failure_reasons:
+        return j({"error": "Choose a failure reason so the finance record can be reviewed correctly"}, 400)
     payment_uuid = as_uuid(body.get("id"))
     order_number = clean(body.get("orderNumber"), 48)
     if not payment_uuid and not order_number:
@@ -265,7 +273,7 @@ def admin_payment_transition(request, body):
             return j({"error": "Enter the verified transaction reference for Mobile Money or card payments"}, 400)
 
         previous = payment.status
-        if target == PaymentRecord.Status.PAID and provider_ref:
+        if target in {PaymentRecord.Status.PAID, PaymentRecord.Status.FAILED} and provider_ref:
             payment.provider_ref = provider_ref
         payment.status = target
         payment.save(update_fields=["status", "provider_ref", "updated_at"])
@@ -278,6 +286,8 @@ def admin_payment_transition(request, body):
             event_details["refundReference"] = provider_ref
         elif provider_ref:
             event_details["providerRef"] = provider_ref
+        if target == PaymentRecord.Status.FAILED:
+            event_details["failureReason"] = failure_reason
         event = AuditLog.objects.create(
             actor_type="ADMIN", actor_id=admin_id(request) or "admin",
             action="payment." + target.lower(),
