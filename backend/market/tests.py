@@ -1,6 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from .models import Category, Product
+from .models import Category, NewsletterSubscriber, Product
 
 
 class MarketApiTests(TestCase):
@@ -616,3 +616,51 @@ class FinanceLedgerTests(TestCase):
         entry = response.json()["payments"][0]
         self.assertEqual(entry["status"], "FAILED")
         self.assertEqual(entry["history"][0]["failureReason"], "PROVIDER_DECLINED")
+
+
+class NewsletterSubscriptionTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+
+    def test_valid_email_subscribes_and_duplicate_is_idempotent(self):
+        payload = '{"email":"MarketUpdates@example.com"}'
+        first = self.client.post(
+            "/api/newsletter/subscribe",
+            data=payload,
+            content_type="application/json",
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertTrue(first.json()["ok"])
+        self.assertEqual(
+            first.json()["message"],
+            "You're subscribed to Gwizineza Market updates.",
+        )
+        self.assertEqual(
+            NewsletterSubscriber.objects.filter(email="marketupdates@example.com").count(),
+            1,
+        )
+
+        duplicate = self.client.post(
+            "/api/newsletter/subscribe",
+            data=payload,
+            content_type="application/json",
+        )
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(
+            NewsletterSubscriber.objects.filter(email="marketupdates@example.com").count(),
+            1,
+        )
+
+    def test_invalid_newsletter_email_is_rejected(self):
+        response = self.client.post(
+            "/api/newsletter/subscribe",
+            data='{"email":"not-an-email"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("valid email", response.json()["error"].lower())
+        self.assertEqual(NewsletterSubscriber.objects.count(), 0)
+
+    def test_newsletter_subscription_requires_post(self):
+        response = self.client.get("/api/newsletter/subscribe")
+        self.assertEqual(response.status_code, 405)
