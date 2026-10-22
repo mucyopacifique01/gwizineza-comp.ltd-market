@@ -508,6 +508,13 @@ def send_customer_otp(request, body):
     kind, value = normalize_contact(body.get("contact") or body.get("email") or body.get("phone"))
     if not kind:
         return j({"error": "Enter a valid email address or phone number with country code."}, 400)
+    # The storefront account flow deliberately sends OTP to email, even when a
+    # mobile number is collected during registration. Keep phone-only OTP for
+    # backwards compatibility with clients that explicitly request it.
+    if body.get("email") and body.get("contact") and "@" not in str(body.get("contact")):
+        kind, value = normalize_contact(body.get("email"))
+        if kind != "email":
+            return j({"error": "Enter a valid email address to receive your verification code."}, 400)
     if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
         return j({"error": "Supabase Auth is not configured on the Django service."}, 503)
     throttle_key = "otp-send:" + hashlib.sha256(value.lower().encode()).hexdigest()
@@ -652,6 +659,15 @@ def verify_customer_otp(request, body):
     submitted_name = clean(body.get("name"), 160)
     verified_email = clean(user.get("email"), 180).lower() or (value if kind == "email" else "")
     verified_phone = clean(user.get("phone"), 30) or (value if kind == "phone" else "")
+    # A phone supplied alongside an email OTP is a registration contact detail,
+    # not a verified phone identity. Validate and normalize it before saving.
+    submitted_phone = body.get("phone")
+    if submitted_phone:
+        phone_kind, normalized_phone = normalize_contact(submitted_phone)
+        if phone_kind != "phone":
+            return j({"error": "Enter a valid mobile number with country code."}, 400)
+        if not verified_phone:
+            verified_phone = normalized_phone
     try:
         profile = upsert_customer_profile(user_id, verified_email, verified_phone, submitted_name, metadata)
     except IntegrityError:
