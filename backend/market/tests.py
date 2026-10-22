@@ -84,6 +84,88 @@ class AuthFlowTests(TestCase):
                                         data='{"contact":"+250788123456","code":"12"}', content_type="application/json")
             self.assertEqual(response.status_code, 400)
 
+    def test_signup_otp_is_sent_to_email_even_when_phone_is_provided(self):
+        from unittest import mock
+        from django.test import override_settings
+
+        class FakeResponse:
+            status_code = 200
+
+        with override_settings(SUPABASE_URL="https://example.supabase.co", SUPABASE_ANON_KEY="anon"):
+            with mock.patch("market.views.requests.post", return_value=FakeResponse()) as send:
+                response = self.client.post(
+                    "/api/customer/auth/otp/send",
+                    data='{"contact":"Buyer@Example.com","email":"Buyer@Example.com","phone":"0788123456","name":"Test Buyer","createUser":true}',
+                    content_type="application/json",
+                    HTTP_ORIGIN="http://testserver",
+                    HTTP_HOST="testserver",
+                )
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = send.call_args.kwargs["json"]
+        self.assertEqual(payload["email"], "buyer@example.com")
+        self.assertNotIn("phone", payload)
+        self.assertTrue(payload["create_user"])
+        self.assertEqual(response.json()["channel"], "email")
+
+    def test_email_otp_verification_saves_signup_phone_and_creates_customer_session(self):
+        from unittest import mock
+        from django.test import override_settings
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self_inner):
+                return {
+                    "user": {
+                        "id": "otp-email-user-001",
+                        "email": "buyer@example.com",
+                        "user_metadata": {"full_name": "Test Buyer"},
+                    }
+                }
+
+        with override_settings(SUPABASE_URL="https://example.supabase.co", SUPABASE_ANON_KEY="anon"):
+            with mock.patch("market.views.requests.post", return_value=FakeResponse()) as verify:
+                response = self.client.post(
+                    "/api/customer/auth/otp/verify",
+                    data='{"contact":"buyer@example.com","email":"buyer@example.com","phone":"0788123456","code":"123456","name":"Test Buyer"}',
+                    content_type="application/json",
+                    HTTP_ORIGIN="http://testserver",
+                    HTTP_HOST="testserver",
+                )
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = verify.call_args.kwargs["json"]
+        self.assertEqual(payload["type"], "email")
+        self.assertEqual(payload["email"], "buyer@example.com")
+        self.assertEqual(payload["token"], "123456")
+        self.assertEqual(response.json()["customer"]["phone"], "+250788123456")
+        self.assertIn("gwizineza_customer_session", response.cookies)
+        self.assertTrue(response.cookies["gwizineza_customer_session"]["httponly"])
+        session = self.client.get("/api/customer/me")
+        self.assertEqual(session.status_code, 200, session.content)
+        self.assertEqual(session.json()["customer"]["email"], "buyer@example.com")
+        self.assertEqual(session.json()["customer"]["phone"], "+250788123456")
+
+    def test_email_otp_rejects_invalid_registration_phone(self):
+        from unittest import mock
+        from django.test import override_settings
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self_inner):
+                return {"user": {"id": "otp-invalid-phone-user", "email": "buyer@example.com"}}
+
+        with override_settings(SUPABASE_URL="https://example.supabase.co", SUPABASE_ANON_KEY="anon"):
+            with mock.patch("market.views.requests.post", return_value=FakeResponse()):
+                response = self.client.post(
+                    "/api/customer/auth/otp/verify",
+                    data='{"contact":"buyer@example.com","phone":"not-a-phone","code":"123456"}',
+                    content_type="application/json",
+                    HTTP_ORIGIN="http://testserver",
+                    HTTP_HOST="testserver",
+                )
+        self.assertEqual(response.status_code, 400)
+
     def test_google_login_endpoint_exists(self):
         # Google sign-in is back: without a token it must fail cleanly, never 410/500.
         response = self.client.post("/api/customer/auth/google",
