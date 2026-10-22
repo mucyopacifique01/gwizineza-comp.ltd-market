@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { TextField } from '../../../components/ui/Field';
 import { Button, ButtonLink } from '../../../components/ui/Button';
 import { Icon } from '../../../components/ui/Icon';
@@ -34,6 +34,7 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const oauthCallbackPending = useRef(false);
 
   async function finishGoogleLogin(accessToken: string) {
     try {
@@ -60,6 +61,7 @@ export default function AuthPage() {
     const accessToken = hash.get('access_token') || params.get('access_token');
     const oauthError = params.get('error_description') || params.get('error') || hash.get('error_description') || hash.get('error');
     if (accessToken) {
+      oauthCallbackPending.current = true;
       window.history.replaceState({}, '', window.location.pathname); // strip tokens from the URL immediately
       setGoogleLoading(true);
       void finishGoogleLogin(accessToken);
@@ -85,7 +87,7 @@ export default function AuthPage() {
       params.get('error') ||
       params.get('error_description')
     );
-    if (hasOAuthResult) {
+    if (oauthCallbackPending.current || hasOAuthResult) {
       setChecking(false);
       return;
     }
