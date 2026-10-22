@@ -1,1 +1,5 @@
-import { FigmaMarketplacePage } from '@/components/content/FigmaMarketplacePage'; export default function Page(){return <FigmaMarketplacePage kind="finance"/>}
+import FinanceLedgerPage from '@/components/dash/FinanceLedger';
+
+export default function FinancePage() {
+  return <FinanceLedgerPage />;
+}
