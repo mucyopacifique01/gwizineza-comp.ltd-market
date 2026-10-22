@@ -456,3 +456,127 @@ class MapPlaceTests(TestCase):
                 # Falls back to the configured site coordinates with HTTP 200.
                 self.assertEqual(payload["pin"], {"lat": -2.0127, "lng": 30.5585})
                 self.assertEqual(payload["source"], "fallback")
+
+
+
+
+class FinanceLedgerTests(TestCase):
+    def setUp(self):
+        import json
+        self.client = Client()
+        self.headers = {"HTTP_HOST": "testserver", "HTTP_ORIGIN": "http://testserver"}
+        with self.settings(ADMIN_PASSWORD="owner-secret"):
+            login = self.client.post(
+                "/api/admin/login",
+                data=json.dumps({"password": "owner-secret"}),
+                content_type="application/json",
+                **self.headers,
+            )
+        self.assertEqual(login.status_code, 200, login.content)
+        from .models import PaymentRecord, StoreOrder
+        self.PaymentRecord = PaymentRecord
+        self.order = StoreOrder.objects.create(
+            order_number="GW-FINANCE-TEST-1",
+            customer_name="Finance Test Buyer",
+            phone="+250788123456",
+            customer_email="buyer@example.com",
+            delivery_address="Kabarondo",
+            subtotal_rwf=12000,
+            delivery_rwf=1000,
+            total_rwf=13000,
+        )
+        self.payment = PaymentRecord.objects.create(
+            order=self.order,
+            method=PaymentRecord.Method.MOMO,
+            amount_rwf=self.order.total_rwf,
+        )
+
+    def patch_finance(self, payload):
+        import json
+        return self.client.patch(
+            "/api/admin/finance",
+            data=json.dumps(payload),
+            content_type="application/json",
+            **self.headers,
+        )
+
+    def test_finance_ledger_requires_admin(self):
+        client = Client()
+        self.assertEqual(client.get("/api/admin/finance").status_code, 401)
+        self.assertEqual(client.patch(
+            "/api/admin/finance",
+            data='{"id":"%s","status":"PAID"}' % self.payment.id,
+            content_type="application/json",
+            **self.headers,
+        ).status_code, 401)
+
+    def test_ledger_lists_transactions_and_searches_by_order(self):
+        response = self.client.get("/api/admin/finance?q=GW-FINANCE-TEST-1", **self.headers)
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertEqual(body["summary"]["pendingRwf"], self.order.total_rwf)
+        self.assertEqual(body["totalPayments"], 1)
+        self.assertEqual(body["payments"][0]["orderNumber"], self.order.order_number)
+        self.assertEqual(body["payments"][0]["method"], "MOMO")
+        self.assertEqual(body["payments"][0]["status"], "PENDING")
+
+    def test_paid_requires_external_confirmation_and_transaction_reference(self):
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "PAID",
+            "note": "Matched provider receipt",
+            "externalConfirmation": True,
+        })
+        self.assertEqual(response.status_code, 400)
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "PAID",
+            "note": "Matched provider receipt",
+            "externalConfirmation": False,
+            "providerRef": "MOMO-REF-123",
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_payment_can_be_confirmed_then_refunded_with_audit_trail(self):
+        from .models import AuditLog
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "PAID",
+            "note": "Matched actual Mobile Money receipt",
+            "providerRef": "MOMO-REF-123",
+            "externalConfirmation": True,
+        })
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["payment"]["status"], "PAID")
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.provider_ref, "MOMO-REF-123")
+
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "REFUNDED",
+            "note": "Refund sent to the customer outside the website",
+            "providerRef": "REFUND-REF-456",
+            "externalConfirmation": True,
+        })
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["payment"]["status"], "REFUNDED")
+        self.assertEqual(
+            list(AuditLog.objects.filter(entity_type="PaymentRecord", entity_id=str(self.payment.id))
+                 .order_by("created_at").values_list("action", flat=True)),
+            ["payment.paid", "payment.refunded"],
+        )
+        self.assertEqual(
+            response.json()["payment"]["history"][-1]["refundReference"],
+            "REFUND-REF-456",
+        )
+
+    def test_paid_payment_cannot_be_cancelled_or_reopened(self):
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "PAID",
+            "note": "Matched actual Mobile Money receipt",
+            "providerRef": "MOMO-REF-789",
+            "externalConfirmation": True,
+        })
+        self.assertEqual(response.status_code, 200, response.content)
+        response = self.patch_finance({
+            "id": str(self.payment.id), "status": "CANCELLED",
+            "note": "Try invalid transition",
+        })
+        self.assertEqual(response.status_code, 409, response.content)
+        self.assertEqual(response.json()["error"][:7], "This pa")
