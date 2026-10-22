@@ -73,11 +73,30 @@ export default function AuthPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetch('/api/customer/me')
+    // Do not race the OAuth callback with the initial session lookup: the
+    // callback can establish a session while this request still reports no user.
+    const params = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const hasOAuthResult = Boolean(
+      hash.get('access_token') ||
+      params.get('access_token') ||
+      hash.get('error') ||
+      hash.get('error_description') ||
+      params.get('error') ||
+      params.get('error_description')
+    );
+    if (hasOAuthResult) {
+      setChecking(false);
+      return;
+    }
+
+    let active = true;
+    fetch('/api/customer/me', { credentials: 'include', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
-      .then(data => setCustomer(data?.customer ?? null))
-      .catch(() => setCustomer(null))
-      .finally(() => setChecking(false));
+      .then(data => { if (active) setCustomer(data?.customer ?? null); })
+      .catch(() => { if (active) setCustomer(null); })
+      .finally(() => { if (active) setChecking(false); });
+    return () => { active = false; };
   }, []);
 
   const clear = () => { setMessage(''); setError(''); };
