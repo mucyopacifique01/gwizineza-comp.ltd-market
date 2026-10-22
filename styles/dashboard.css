@@ -206,3 +206,7 @@
   .finance-detail-summary{flex-direction:column;gap:14px}
 }
 @media(max-width:420px){.finance-stat-grid{grid-template-columns:minmax(0,1fr)}}
+
+
+.finance-history-reason{display:flex;align-items:flex-start;gap:6px;margin:6px 0;font-size:12px;color:var(--clay,#8d2a21);line-height:1.5}
+.finance-history-reason strong{flex:none}
