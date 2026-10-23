@@ -111,12 +111,12 @@ export default function AuthPage() {
       return;
     }
     const email = contact.trim().toLowerCase();
-    if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Enter a valid email address. Your verification code will be sent to this email.');
       return;
     }
     if (mode === 'signup') {
-      const phoneDigits = phone.replace(/\\D/g, '');
+      const phoneDigits = phone.replace(/\D/g, '');
       if (phoneDigits.length < 9 || phoneDigits.length > 15) {
         setError('Enter a valid mobile number, including the country code (for example, +250 78 123 4567).');
         return;
