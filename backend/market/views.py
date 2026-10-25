@@ -987,7 +987,7 @@ def _api_dispatch(request, resource=""):
         }, 201 if created else 200)
 
     if path == "newsletter/unsubscribe":
-        token = clean(request.GET.get("token") if method == "GET" else body.get("token"), 2000)
+        token = clean(request.GET.get("token") if method == "GET" else request.POST.get("token") or body.get("token"), 2000)
         if method == "GET":
             if not token:
                 return HttpResponse("Invalid unsubscribe link.", status=400, content_type="text/plain")
@@ -1055,14 +1055,14 @@ def _api_dispatch(request, resource=""):
         for subscriber in subscribers:
             token = signing.dumps({"email": subscriber.email}, salt="gwizineza-newsletter-unsubscribe")
             unsubscribe_url = public_site_url + "/api/newsletter/unsubscribe?token=" + quote(token, safe="")
-            safe_message = html.escape(message).replace("\\n", "<br>")
+            safe_message = html.escape(message).replace("\n", "<br>")
             email_messages.append({
                 "from": from_email,
                 "to": [subscriber.email],
                 "subject": subject,
-                "text": message + "\\n\\nUnsubscribe from market updates: " + unsubscribe_url,
+                "text": message + "\n\nUnsubscribe from market updates: " + unsubscribe_url,
                 "html": '<div style="font-family:Arial,sans-serif;line-height:1.6">' +
-                        '<p>' + safe_message.replace("\\n", "<br>") + '</p><hr><p style="font-size:12px;color:#666">'
+                        '<p>' + safe_message.replace("\n", "<br>") + '</p><hr><p style="font-size:12px;color:#666">'
                         'You received this because you subscribed to Gwizineza Market updates. '
                         '<a href="' + html.escape(unsubscribe_url, quote=True) + '">Unsubscribe</a></p></div>',
             })
