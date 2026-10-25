@@ -9,6 +9,7 @@ const NAV: DashNavItem[] = [
   { href: '/admin/products', label: 'Products & inventory', icon: 'box' },
   { href: '/admin/sellers', label: 'Sellers', icon: 'store' },
   { href: '/admin/customers', label: 'Users', icon: 'users' },
+  { href: '/admin/newsletter', label: 'Newsletter', icon: 'mail' },
   { href: '/admin/analytics', label: 'Analytics', icon: 'chart' },
   { href: '/admin/finance', label: 'Finance', icon: 'money' },
   { href: '/admin/slider', label: 'Homepage slider & logo', icon: 'layers' },
