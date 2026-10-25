@@ -214,10 +214,51 @@ function AdminFinance(){
 
 function AdminCms(){
  const posts=useJson<{posts:ContentPost[]}>('/api/content?admin=true','/admin/login');
+ const subscribers=useJson<{totalCount:number;subscribers:{id:string;email:string;createdAt:string}[]}>('/api/admin/newsletter/subscribers','/admin/login');
  const [title,setTitle]=useState(''); const [slug,setSlug]=useState(''); const [body,setBody]=useState(''); const [saving,setSaving]=useState(false); const [message,setMessage]=useState('');
+ const [newsletterSubject,setNewsletterSubject]=useState('Gwizineza Market updates');
+ const [newsletterMessage,setNewsletterMessage]=useState('');
+ const [sending,setSending]=useState(false); const [newsletterStatus,setNewsletterStatus]=useState('');
+ const [newsletterError,setNewsletterError]=useState(false);
  async function create(){setSaving(true);setMessage('');try{await request('/api/content',{method:'POST',body:JSON.stringify({title,slug,body,status:'PUBLISHED'})},'/admin/login');setTitle('');setSlug('');setBody('');setMessage('Published');posts.reload()}catch(e){setMessage(e instanceof Error?e.message:'Could not publish')}finally{setSaving(false)}}
+ async function sendNewsletter(){
+  if(!newsletterSubject.trim()||!newsletterMessage.trim())return;
+  const count=subscribers.data?.totalCount||0;
+  if(count===0){setNewsletterError(true);setNewsletterStatus('There are no active subscribers to email.');return;}
+  if(!window.confirm('Send this message to '+count+' active newsletter subscriber(s) using Brevo?'))return;
+  setSending(true);setNewsletterStatus('');setNewsletterError(false);
+  try{
+   const result=await request<{sentTo:number;message:string}>('/api/admin/newsletter/send',{method:'POST',body:JSON.stringify({subject:newsletterSubject.trim(),message:newsletterMessage.trim()})},'/admin/login');
+   setNewsletterStatus(result.message+' Recipients: '+result.sentTo+'.');
+   setNewsletterMessage('');
+  }catch(e){setNewsletterError(true);setNewsletterStatus(e instanceof Error?e.message:'Could not send newsletter.');}
+  finally{setSending(false);}
+ }
  if(posts.loading&&!posts.data)return <LoadingBlock/>; if(posts.error)return <ErrorBlock error={posts.error} retry={posts.reload}/>;
- return <section className="fig-panel-grid"><div className="fig-panel"><h2>Publish article</h2><div className="stack"><input className="input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)}/><input className="input" placeholder="Slug" value={slug} onChange={e=>setSlug(e.target.value)}/><textarea className="textarea" placeholder="Article body" value={body} onChange={e=>setBody(e.target.value)}/><button className="btn btn-primary" disabled={saving||!title||!slug||!body} onClick={()=>void create()}>{saving?'Publishing…':'Publish'}</button>{message&&<p className="alert">{message}</p>}</div></div><div className="fig-panel"><h2>Content library</h2><div className="fig-links">{posts.data!.posts.map(p=><div key={p.id} className="row-between" style={{padding:'14px 0',borderBottom:'1px solid var(--fig-line)'}}><span><strong>{p.title}</strong><small className="muted" style={{display:'block'}}>{p.status} · {p.slug}</small></span><span className="badge">{p.status}</span></div>)}</div></div></section>;
+ return <div className="stack">
+  <section className="fig-panel-grid"><div className="fig-panel"><h2>Publish article</h2><div className="stack"><input className="input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)}/><input className="input" placeholder="Slug" value={slug} onChange={e=>setSlug(e.target.value)}/><textarea className="textarea" placeholder="Article body" value={body} onChange={e=>setBody(e.target.value)}/><button className="btn btn-primary" disabled={saving||!title||!slug||!body} onClick={()=>void create()}>{saving?'Publishing…':'Publish'}</button>{message&&<p className="alert">{message}</p>}</div></div><div className="fig-panel"><h2>Content library</h2><div className="fig-links">{posts.data!.posts.map(p=><div key={p.id} className="row-between" style={{padding:'14px 0',borderBottom:'1px solid var(--fig-line)'}}><span><strong>{p.title}</strong><small className="muted" style={{display:'block'}}>{p.status} · {p.slug}</small></span><span className="badge">{p.status}</span></div>)}</div></div></section>
+  <section className="fig-panel-grid">
+   <div className="fig-panel">
+    <span className="eyebrow">Email marketing · Brevo</span><h2>Newsletter subscribers</h2>
+    {subscribers.loading&&!subscribers.data?<p className="muted">Loading subscribers…</p>:subscribers.error?<><p className="alert alert-warn">{subscribers.error}</p><button className="btn btn-outline" onClick={subscribers.reload}>Retry</button></>:<>
+     <div className="fig-metric-grid"><div><small>Total active subscribers</small><strong>{subscribers.data!.totalCount}</strong></div><div><small>Showing</small><strong>{subscribers.data!.subscribers.length}</strong></div></div>
+     <p className="muted" style={{marginTop:12}}>Only people who subscribed through the website are listed. Email addresses are not exposed to other subscribers.</p>
+     <div className="fig-links" style={{marginTop:14,maxHeight:280,overflowY:'auto'}}>{subscribers.data!.subscribers.length?subscribers.data!.subscribers.map(s=><div key={s.id} className="row-between" style={{padding:'10px 0',borderBottom:'1px solid var(--fig-line)',gap:12}}><span>{s.email}</span><small className="muted">{formatDate(s.createdAt)}</small></div>):<p className="muted">No active subscribers yet.</p>}</div>
+    </>}
+   </div>
+   <div className="fig-panel">
+    <span className="eyebrow">Send an update</span><h2>Compose newsletter</h2>
+    <p className="muted">Write the message you want subscribers to receive. Brevo sends it from your verified sender address.</p>
+    <div className="stack">
+     <label className="field-label" htmlFor="newsletter-subject">Email subject</label><input id="newsletter-subject" className="input" maxLength={180} placeholder="e.g. New products and market deals" value={newsletterSubject} onChange={e=>setNewsletterSubject(e.target.value)} />
+     <label className="field-label" htmlFor="newsletter-message">Your message</label><textarea id="newsletter-message" className="textarea" rows={7} maxLength={12000} placeholder="Write your update for Gwizineza Market subscribers…" value={newsletterMessage} onChange={e=>setNewsletterMessage(e.target.value)} />
+     <button className="btn btn-primary" disabled={sending||!newsletterSubject.trim()||!newsletterMessage.trim()||!subscribers.data?.totalCount} onClick={()=>void sendNewsletter()}>{sending?'Sending through Brevo…':'Send to all active subscribers'}</button>
+     {newsletterStatus&&<p className={newsletterError?'alert alert-warn':'alert'} role={newsletterError?'alert':'status'}>{newsletterStatus}</p>}
+     <small className="muted">Before sending, confirm the subscriber count and message. Add a Brevo unsubscribe link or use a Brevo campaign for full mailing-list compliance.</small>
+    </div>
+   </div>
+  </section>
+ </div>;
 }
 
 function AdminSupport(){
