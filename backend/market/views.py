@@ -1,4 +1,6 @@
 import hashlib
+import html
+import os
 import hmac
 import json
 import re
@@ -988,13 +990,75 @@ def _api_dispatch(request, resource=""):
         blocked = require_admin(request)
         if blocked:
             return blocked
-        subscribers = NewsletterSubscriber.objects.filter(is_active=True).order_by("-created_at")[:1000]
+        active_subscribers = NewsletterSubscriber.objects.filter(is_active=True)
+        subscribers = active_subscribers.order_by("-created_at")[:1000]
         return j({
+            "totalCount": active_subscribers.count(),
             "subscribers": [
                 {"id": str(row.id), "email": row.email, "createdAt": iso(row.created_at)}
                 for row in subscribers
             ],
         })
+
+    if path == "admin/newsletter/send" and method == "POST":
+        blocked = require_admin(request)
+        if blocked:
+            return blocked
+        subject = clean(body.get("subject"), 180)
+        message = clean(body.get("message"), 12000)
+        if not subject or not message:
+            return j({"error": "Enter both an email subject and message."}, 400)
+
+        api_key = os.environ.get("BREVO_API_KEY", "").strip()
+        sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
+        sender_name = os.environ.get("BREVO_SENDER_NAME", "Gwizineza Market").strip() or "Gwizineza Market"
+        if not api_key or not sender_email:
+            return j({"error": "Newsletter email is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL in the backend environment."}, 503)
+
+        try:
+            EmailValidator()(sender_email)
+        except ValidationError:
+            return j({"error": "BREVO_SENDER_EMAIL must be a valid, verified sender address."}, 503)
+
+        recipients = list(
+            NewsletterSubscriber.objects.filter(is_active=True).order_by("created_at").values_list("email", flat=True)[:1000]
+        )
+        if not recipients:
+            return j({"error": "There are no active newsletter subscribers to email."}, 400)
+
+        # Brevo's messageVersions sends a separate message to each opted-in subscriber.
+        # Do not put every subscriber in a shared To/CC list.
+        html_message = "<div style='font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6'>" + html.escape(message).replace("\\n", "<br>") + "</div>"
+        payload = {
+            "sender": {"name": sender_name, "email": sender_email},
+            "subject": subject,
+            "htmlContent": html_message,
+            "textContent": message,
+            "messageVersions": [
+                {"to": [{"email": email}], "subject": subject}
+                for email in recipients
+            ],
+        }
+        try:
+            response = requests.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": api_key, "accept": "application/json", "content-type": "application/json"},
+                json=payload,
+                timeout=30,
+            )
+        except requests.RequestException:
+            logger.exception("Brevo newsletter send request failed")
+            return j({"error": "Could not connect to Brevo. No send confirmation was received; check the backend logs before retrying."}, 502)
+
+        if response.status_code not in (200, 201, 202):
+            logger.warning("Brevo newsletter send failed with status %s", response.status_code)
+            return j({"error": "Brevo rejected the newsletter. Check the sender verification, API key, and Brevo account limits."}, 502)
+
+        return j({
+            "ok": True,
+            "sentTo": len(recipients),
+            "message": "Newsletter request accepted by Brevo for the active subscriber list.",
+        }, 200)
 
     if path == "auth/send-sms-hook" and method == "POST":
         return send_textbee_hook(request)
