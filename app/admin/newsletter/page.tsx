@@ -59,7 +59,7 @@ export default function AdminNewsletterPage() {
               <div><span className="eyebrow">Opted-in audience</span><h2 className="card-title" style={{ marginTop: 8 }}>Active subscribers</h2><p className="muted small">Only active newsletter subscribers are eligible for campaigns.</p></div>
               <div className="stat-card stat-green"><span className="stat-label">Ready to receive updates</span><strong className="stat-value">{data?.count ?? data?.subscribers.length ?? 0}</strong></div>
             </div>
-            {!data?.subscribers.length ? <EmptyState art="mail" title="No subscribers yet" description="Customers who subscribe in the website footer will appear here." /> : (
+            {!data?.subscribers.length ? <EmptyState art="orders" title="No subscribers yet" description="Customers who subscribe in the website footer will appear here." /> : (
               <div className="table-wrap" style={{ marginTop: 16 }}>
                 <table className="table"><thead><tr><th>Email address</th><th>Subscribed</th><th>Status</th></tr></thead>
                   <tbody>{data.subscribers.map(s => <tr key={s.id}><td>{s.email}</td><td className="muted">{new Date(s.createdAt).toLocaleDateString()}</td><td><span className="badge badge-green">Subscribed</span></td></tr>)}</tbody>
