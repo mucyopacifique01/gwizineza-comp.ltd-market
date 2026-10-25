@@ -13,6 +13,7 @@ const NAV: DashNavItem[] = [
   { href: '/admin/finance', label: 'Finance', icon: 'money' },
   { href: '/admin/slider', label: 'Homepage slider & logo', icon: 'layers' },
   { href: '/admin/content', label: 'CMS', icon: 'layers' },
+  { href: '/admin/newsletter', label: 'Newsletter', icon: 'mail' },
   { href: '/admin/support', label: 'Support tickets', icon: 'users' },
   { href: '/admin/settings', label: 'Settings', icon: 'settings' },
 ];
