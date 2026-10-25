@@ -3,7 +3,6 @@ import type { ProductDTO } from '@/lib/types';
 import { ProductCard } from '@/components/product/ProductCard';
 import { Price } from '@/components/product/Price';
 import { Icon } from '@/components/ui/Icon';
-import { FigmaNewsletterSignup } from '@/components/home/FigmaNewsletterSignup';
 
 export function FigmaHomeSections({products,best,categories}:{products:ProductDTO[];best:ProductDTO[];categories:{id:string;name:string;slug:string}[]}) {
   const deals=products.filter(p=>p.compareAtPriceRwf && p.compareAtPriceRwf>p.priceRwf).slice(0,4);
@@ -16,7 +15,6 @@ export function FigmaHomeSections({products,best,categories}:{products:ProductDT
     <section className="section-tight"><div className="container"><div className="section-head"><div><span className="eyebrow">New arrivals</span><h2>Fresh products on the shelf</h2></div><Link href="/shop?sort=newest" className="link-arrow">See all <Icon name="arrowRight" size={16}/></Link></div><div className="product-grid product-grid-4">{fresh.map(p=><ProductCard key={p.id} product={p}/>)}</div></div></section>
     <section className="section"><div className="container"><div className="section-head"><div><span className="eyebrow">Industry solutions</span><h2>Shop by business need</h2></div></div><div className="fig-industry-grid">{categories.slice(0,6).map((c,i)=><Link key={c.id} href={'/shop?category='+c.slug} className="fig-industry"><span>0{i+1}</span><strong>{c.name}</strong><small>Explore products and suppliers</small><Icon name="arrowRight" size={18}/></Link>)}</div></div></section>
     <section className="fig-rfq"><div className="container"><div><span className="eyebrow no-rule">Sourcing support</span><h2>Can’t find what you need?</h2><p>Post a buying request and let the marketplace team help you find a supplier.</p></div><Link href="/contact" className="btn btn-primary btn-lg">Post a buying request <Icon name="arrowRight" size={18}/></Link></div></section>
-    <section className="section-tight"><div className="container fig-newsletter"><div><span className="eyebrow">Stay informed</span><h2>Market updates in your inbox.</h2><p>Deals, new sellers, buying guides, and marketplace news.</p></div><FigmaNewsletterSignup /></div></section>
     <section className="section-tight"><div className="container"><div className="section-head"><div><span className="eyebrow">Top ranking</span><h2>Popular products</h2></div></div><div className="fig-ranking">{ranking.map((p,i)=><Link key={p.id} href={'/product/'+p.slug} className="fig-rank"><span>{String(i+1).padStart(2,'0')}</span><div><strong>{p.name}</strong><small>{p.seller?.businessName??'Gwizineza Market'}</small></div><Price value={p.priceRwf} size="sm"/></Link>)}</div></div></section>
     <section className="section"><div className="container fig-assurance"><div><Icon name="shield" size={30}/><div><h2>Trade assurance mindset</h2><p>Verified sellers, clear order records, delivery support, and a direct path to help.</p></div></div><Link href="/trade-assurance" className="btn btn-outline">Learn more</Link></div></section>
   </div>;
