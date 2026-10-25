@@ -1,4 +1,6 @@
 import hashlib
+import html
+import os
 import hmac
 import json
 import re
@@ -984,6 +986,41 @@ def _api_dispatch(request, resource=""):
             "message": "You're subscribed to Gwizineza Market updates.",
         }, 201 if created else 200)
 
+    if path == "newsletter/unsubscribe":
+        token = clean(request.GET.get("token") if method == "GET" else body.get("token"), 2000)
+        if method == "GET":
+            if not token:
+                return HttpResponse("Invalid unsubscribe link.", status=400, content_type="text/plain")
+            try:
+                signing.loads(token, salt="gwizineza-newsletter-unsubscribe", max_age=31536000)
+            except (signing.BadSignature, signing.SignatureExpired):
+                return HttpResponse("This unsubscribe link is invalid or expired.", status=400, content_type="text/plain")
+            return HttpResponse(
+                '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+                '<title>Unsubscribe | Gwizineza Market</title></head><body style="font-family:Arial,sans-serif;max-width:520px;margin:12vh auto;padding:24px">'
+                '<h1>Unsubscribe from market updates</h1><p>Confirm below if you no longer want to receive Gwizineza Market emails.</p>'
+                '<form method="post"><input type="hidden" name="token" value="' + html.escape(token, quote=True) + '">'
+                '<button style="padding:12px 18px;cursor:pointer" type="submit">Unsubscribe me</button></form></body></html>',
+                content_type="text/html; charset=utf-8",
+            )
+        if method == "POST":
+            if not token:
+                return j({"error": "Invalid unsubscribe link."}, 400)
+            try:
+                payload = signing.loads(token, salt="gwizineza-newsletter-unsubscribe", max_age=31536000)
+                email = clean(payload.get("email"), 254).lower()
+                EmailValidator()(email)
+            except (signing.BadSignature, signing.SignatureExpired, ValidationError, AttributeError):
+                return j({"error": "This unsubscribe link is invalid or expired."}, 400)
+            NewsletterSubscriber.objects.filter(email=email).update(is_active=False, updated_at=timezone.now())
+            return HttpResponse(
+                "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Unsubscribed</title></head>"
+                "<body style=\"font-family:Arial,sans-serif;max-width:520px;margin:12vh auto;padding:24px\"><h1>You are unsubscribed</h1>"
+                "<p>You will no longer receive Gwizineza Market newsletter emails.</p></body></html>",
+                content_type="text/html; charset=utf-8",
+            )
+        return j({"error": "Method not allowed"}, 405)
+
     if path == "admin/newsletter/subscribers" and method == "GET":
         blocked = require_admin(request)
         if blocked:
@@ -994,7 +1031,65 @@ def _api_dispatch(request, resource=""):
                 {"id": str(row.id), "email": row.email, "createdAt": iso(row.created_at)}
                 for row in subscribers
             ],
+            "count": NewsletterSubscriber.objects.filter(is_active=True).count(),
         })
+
+    if path == "admin/newsletter/send" and method == "POST":
+        blocked = require_admin(request)
+        if blocked:
+            return blocked
+        api_key = os.environ.get("RESEND_API_KEY", "").strip()
+        from_email = os.environ.get("RESEND_FROM_EMAIL", "").strip()
+        public_site_url = os.environ.get("PUBLIC_SITE_URL", "").strip().rstrip("/")
+        if not api_key or not from_email or not public_site_url:
+            return j({"error": "Newsletter email is not configured. Set RESEND_API_KEY, RESEND_FROM_EMAIL, and PUBLIC_SITE_URL on the Django service."}, 503)
+        subject = clean(body.get("subject"), 180)
+        message = clean(body.get("message"), 10000)
+        if not subject or not message:
+            return j({"error": "Enter both an email subject and message."}, 400)
+        subscribers = list(NewsletterSubscriber.objects.filter(is_active=True).order_by("created_at")[:1000])
+        if not subscribers:
+            return j({"error": "There are no active newsletter subscribers to email."}, 400)
+
+        email_messages = []
+        for subscriber in subscribers:
+            token = signing.dumps({"email": subscriber.email}, salt="gwizineza-newsletter-unsubscribe")
+            unsubscribe_url = public_site_url + "/api/newsletter/unsubscribe?token=" + quote(token, safe="")
+            safe_message = html.escape(message).replace("\\n", "<br>")
+            email_messages.append({
+                "from": from_email,
+                "to": [subscriber.email],
+                "subject": subject,
+                "text": message + "\\n\\nUnsubscribe from market updates: " + unsubscribe_url,
+                "html": '<div style="font-family:Arial,sans-serif;line-height:1.6">' +
+                        '<p>' + safe_message.replace("\\n", "<br>") + '</p><hr><p style="font-size:12px;color:#666">'
+                        'You received this because you subscribed to Gwizineza Market updates. '
+                        '<a href="' + html.escape(unsubscribe_url, quote=True) + '">Unsubscribe</a></p></div>',
+            })
+
+        sent = 0
+        for start in range(0, len(email_messages), 100):
+            try:
+                response = requests.post(
+                    "https://api.resend.com/emails/batch",
+                    headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
+                    json=email_messages[start:start + 100],
+                    timeout=25,
+                )
+            except requests.RequestException:
+                logger.exception("Resend newsletter batch request failed")
+                return j({"error": "Resend could not be reached. Some earlier batches may already have been sent.", "sent": sent}, 502)
+            if response.status_code not in (200, 201):
+                logger.error("Resend newsletter batch failed with status %s", response.status_code)
+                return j({"error": "Resend rejected a newsletter batch. Some earlier batches may already have been sent.", "sent": sent}, 502)
+            try:
+                result = response.json()
+                batch_data = result.get("data", []) if isinstance(result, dict) else []
+                sent += len(batch_data) if isinstance(batch_data, list) else min(100, len(email_messages) - start)
+            except ValueError:
+                sent += min(100, len(email_messages) - start)
+        logger.info("Newsletter campaign submitted via Resend: %s recipients", sent)
+        return j({"ok": True, "sent": sent, "message": "Newsletter campaign submitted to Resend."}, 200)
 
     if path == "auth/send-sms-hook" and method == "POST":
         return send_textbee_hook(request)
