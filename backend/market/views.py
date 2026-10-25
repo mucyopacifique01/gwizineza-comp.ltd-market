@@ -1028,7 +1028,7 @@ def _api_dispatch(request, resource=""):
 
         # Brevo's messageVersions sends a separate message to each opted-in subscriber.
         # Do not put every subscriber in a shared To/CC list.
-        html_message = "<div style='font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6'>" + html.escape(message).replace("\\n", "<br>") + "</div>"
+        html_message = "<div style='font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6'>" + html.escape(message).replace("\n", "<br>") + "</div>"
         payload = {
             "sender": {"name": sender_name, "email": sender_email},
             "subject": subject,
