@@ -1021,43 +1021,49 @@ def _api_dispatch(request, resource=""):
             return j({"error": "BREVO_SENDER_EMAIL must be a valid, verified sender address."}, 503)
 
         recipients = list(
-            NewsletterSubscriber.objects.filter(is_active=True).order_by("created_at").values_list("email", flat=True)[:1000]
+            NewsletterSubscriber.objects.filter(is_active=True).order_by("created_at").values_list("email", flat=True)
         )
         if not recipients:
             return j({"error": "There are no active newsletter subscribers to email."}, 400)
 
         # Brevo's messageVersions sends a separate message to each opted-in subscriber.
-        # Do not put every subscriber in a shared To/CC list.
+        # Use batches to keep request sizes reasonable and never expose recipients to one another.
         html_message = "<div style='font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6'>" + html.escape(message).replace("\n", "<br>") + "</div>"
-        payload = {
-            "sender": {"name": sender_name, "email": sender_email},
-            "subject": subject,
-            "htmlContent": html_message,
-            "textContent": message,
-            "messageVersions": [
-                {"to": [{"email": email}], "subject": subject}
-                for email in recipients
-            ],
-        }
-        try:
-            response = requests.post(
-                "https://api.brevo.com/v3/smtp/email",
-                headers={"api-key": api_key, "accept": "application/json", "content-type": "application/json"},
-                json=payload,
-                timeout=30,
-            )
-        except requests.RequestException:
-            logger.exception("Brevo newsletter send request failed")
-            return j({"error": "Could not connect to Brevo. No send confirmation was received; check the backend logs before retrying."}, 502)
+        headers = {"api-key": api_key, "accept": "application/json", "content-type": "application/json"}
+        batch_size = 500
+        accepted = 0
+        batches = [recipients[index:index + batch_size] for index in range(0, len(recipients), batch_size)]
+        for batch_number, batch in enumerate(batches, start=1):
+            payload = {
+                "sender": {"name": sender_name, "email": sender_email},
+                "subject": subject,
+                "htmlContent": html_message,
+                "textContent": message,
+                "messageVersions": [
+                    {"to": [{"email": email}], "subject": subject}
+                    for email in batch
+                ],
+            }
+            try:
+                response = requests.post(
+                    "https://api.brevo.com/v3/smtp/email",
+                    headers=headers,
+                    json=payload,
+                    timeout=30,
+                )
+            except requests.RequestException:
+                logger.exception("Brevo newsletter batch %s failed", batch_number)
+                return j({"error": "Brevo connection failed on batch " + str(batch_number) + " of " + str(len(batches)) + ". " + str(accepted) + " recipient(s) were accepted in earlier batches; check Brevo logs before retrying to avoid duplicate emails."}, 502)
 
-        if response.status_code not in (200, 201, 202):
-            logger.warning("Brevo newsletter send failed with status %s", response.status_code)
-            return j({"error": "Brevo rejected the newsletter. Check the sender verification, API key, and Brevo account limits."}, 502)
+            if response.status_code not in (200, 201, 202):
+                logger.warning("Brevo newsletter batch %s failed with status %s", batch_number, response.status_code)
+                return j({"error": "Brevo rejected batch " + str(batch_number) + " of " + str(len(batches)) + ". " + str(accepted) + " recipient(s) were accepted in earlier batches; check the sender verification, API key, and Brevo account limits before retrying."}, 502)
+            accepted += len(batch)
 
         return j({
             "ok": True,
-            "sentTo": len(recipients),
-            "message": "Newsletter request accepted by Brevo for the active subscriber list.",
+            "sentTo": accepted,
+            "message": "Brevo accepted the newsletter for the active subscriber list.",
         }, 200)
 
     if path == "auth/send-sms-hook" and method == "POST":
