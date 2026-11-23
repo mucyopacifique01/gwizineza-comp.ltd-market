@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { TextField } from '../../../components/ui/Field';
 import { Button, ButtonLink } from '../../../components/ui/Button';
 import { Icon } from '../../../components/ui/Icon';
@@ -19,11 +19,17 @@ function GoogleG({ size = 18 }: { size?: number }) {
 }
 
 type Mode = 'signin' | 'signup';
+type Method = 'email' | 'phone' | 'code';
 type Step = 'contact' | 'verify';
 type Customer = { id: string; name: string; email: string | null; phone: string | null; avatarUrl: string | null; hasPassword: boolean };
 
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>('signin');
+  const [method, setMethod] = useState<Method>('email');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<Step>('contact');
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
@@ -102,7 +108,89 @@ export default function AuthPage() {
     return () => { active = false; };
   }, []);
 
-  const clear = () => { setMessage(''); setError(''); };
+
+const PASSWORD_MIN = 8;
+
+function normalizePhone(input: string): string {
+  const digits = input.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('250')) return '+' + digits;
+  if (digits.startsWith('0')) return '+250' + digits.slice(1);
+  if (digits.length >= 9 && digits.length <= 13) return '+' + digits;
+  return '';
+}
+
+function passwordProblem(value: string): string | null {
+  if (value.length < PASSWORD_MIN) return 'Use at least 8 characters.';
+  if (value.length > 72) return 'Use 72 characters or fewer.';
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return 'Include at least one letter and one number.';
+  return null;
+}
+
+function passwordScore(value: string): number {
+  let score = 0;
+  if (value.length >= 8) score += 1;
+  if (value.length >= 12) score += 1;
+  if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1;
+  if (/\d/.test(value) && /[^A-Za-z0-9]/.test(value)) score += 1;
+  return Math.min(score, 4);
+}
+
+  const clear = () => { setMessage(''); setError(''); setFieldErrors({}); };
+
+
+  async function submitPassword(event: FormEvent) {
+    event.preventDefault();
+    clear();
+    const nextErrors: Record<string, string> = {};
+    const trimmedName = name.trim();
+    const email = contact.trim().toLowerCase();
+    const normalizedPhone = normalizePhone(phone);
+
+    if (mode === 'signup' && trimmedName.length < 2) nextErrors.name = 'Enter your full name.';
+    if (method === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      nextErrors.identifier = 'Enter a valid email address.';
+    }
+    if (method === 'phone' && !normalizedPhone) {
+      nextErrors.identifier = 'Enter a valid mobile number, for example 078 123 4567.';
+    }
+    const pwProblem = passwordProblem(password);
+    if (pwProblem) nextErrors.password = pwProblem;
+    if (mode === 'signup' && confirm !== password) nextErrors.confirm = 'Both passwords must match.';
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/customer/auth/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode,
+          name: trimmedName || undefined,
+          ...(method === 'email' ? { email } : { phone: normalizedPhone }),
+          password,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'We could not complete that request.');
+      if (data.customer) {
+        setCustomer(data.customer);
+        window.dispatchEvent(new Event('gwizineza-auth-changed'));
+        setMessage(mode === 'signup' ? 'Your account is ready. Welcome to Gwizineza Market.' : 'You are signed in securely.');
+        setPassword(''); setConfirm(''); setName(''); setContact(''); setPhone('');
+      } else {
+        setMessage(data.message || 'Check your messages to confirm your account.');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'We could not complete that request.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function sendCode() {
     clear();
@@ -223,75 +311,204 @@ export default function AuthPage() {
           </div>
         ) : (
           <div className="stack">
+            <Button variant="outline" size="lg" block loading={googleLoading} onClick={signInWithGoogle}>
+              <GoogleG /> {googleLoading ? 'Connecting…' : 'Continue with Google'}
+            </Button>
+            <div className="auth-divider"><span>or use your account</span></div>
+
             <div className="segmented segmented-block" role="tablist" aria-label="Account mode">
               <button role="tab" aria-selected={mode === 'signin'} onClick={() => { setMode('signin'); setStep('contact'); setCode(''); clear(); }}>Sign in</button>
               <button role="tab" aria-selected={mode === 'signup'} onClick={() => { setMode('signup'); setStep('contact'); setCode(''); clear(); }}>Sign up</button>
             </div>
-            {step === 'contact' && (
-              <>
-                <Button variant="outline" size="lg" block loading={googleLoading} onClick={signInWithGoogle}>
-                  <GoogleG /> {googleLoading ? 'Signing in…' : 'Continue with Google'}
-                </Button>
-                <div className="auth-divider"><span>or use a one-time code</span></div>
-              </>
-            )}
-            <div className="alert" role="note">
-              <Icon name="shield" size={16} /> No password is needed. We send a one-time verification code to your email address.
+
+            <div className="segmented segmented-block" role="tablist" aria-label="Sign-in method">
+              <button role="tab" aria-selected={method === 'email'} onClick={() => { setMethod('email'); setStep('contact'); clear(); }}>Email</button>
+              <button role="tab" aria-selected={method === 'phone'} onClick={() => { setMethod('phone'); setStep('contact'); clear(); }}>Phone</button>
+              <button role="tab" aria-selected={method === 'code'} onClick={() => { setMethod('code'); setStep('contact'); clear(); }}>One-time code</button>
             </div>
-            <form className="stack" onSubmit={submit}>
-              {mode === 'signup' && step === 'contact' && (
-                <>
-                  <TextField label="Full name" required minLength={2} value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
+
+            {method === 'code' ? (
+              <>
+                <div className="alert" role="note">
+                  <Icon name="shield" size={16} /> No password is needed. We send a one-time code to your email address.
+                </div>
+                <form className="stack" onSubmit={submit}>
+                  {mode === 'signup' && step === 'contact' && (
+                    <>
+                      <TextField label="Full name" required minLength={2} value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
+                      <TextField
+                        label="Mobile number"
+                        required
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="+250 78 123 4567"
+                        autoComplete="tel"
+                        type="tel"
+                        hint="Include your country code. Email is verified by OTP; this number is saved as your contact number."
+                      />
+                    </>
+                  )}
+                  {step === 'contact' ? (
+                    <TextField
+                      label="Email address"
+                      required
+                      value={contact}
+                      onChange={e => setContact(e.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      type="email"
+                      hint="Your one-time verification code will be sent to this email."
+                    />
+                  ) : (
+                    <>
+                      <div className="alert alert-success">Code sent to {contact}. Check your inbox and spam folder, then enter it below.</div>
+                      <TextField
+                        label="One-time verification code"
+                        required
+                        value={code}
+                        onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                        placeholder="Enter the code"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        autoFocus
+                      />
+                      <button type="button" className="link-arrow" onClick={sendCode} disabled={loading}>Resend email code</button>
+                    </>
+                  )}
+                  <Button type="submit" size="lg" block loading={loading}>
+                    {loading ? 'Please wait…' : step === 'contact' ? 'Send verification code' : 'Verify and sign in'}
+                  </Button>
+                  {step === 'verify' && <Button variant="outline" type="button" block onClick={() => { setStep('contact'); setCode(''); clear(); }}>Change email address</Button>}
+                </form>
+              </>
+            ) : (
+              <form className="stack" onSubmit={submitPassword} noValidate>
+                {mode === 'signup' && (
+                  <TextField
+                    label="Full name"
+                    required
+                    minLength={2}
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Your name"
+                    autoComplete="name"
+                    error={fieldErrors.name}
+                  />
+                )}
+                {method === 'email' ? (
+                  <TextField
+                    label="Email address"
+                    required
+                    type="email"
+                    inputMode="email"
+                    value={contact}
+                    onChange={e => setContact(e.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    error={fieldErrors.identifier}
+                  />
+                ) : (
                   <TextField
                     label="Mobile number"
                     required
+                    type="tel"
+                    inputMode="tel"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
-                    placeholder="+250 78 123 4567"
+                    placeholder="078 123 4567"
                     autoComplete="tel"
-                    type="tel"
-                    hint="Include your country code. Email is verified by OTP; this number is saved as your contact number."
+                    hint="Type it as 078… and we add +250 automatically."
+                    error={fieldErrors.identifier}
                   />
-                </>
-              )}
-              {step === 'contact' ? (
-                <TextField
-                  label="Email address"
-                  required
-                  value={contact}
-                  onChange={e => setContact(e.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  type="email"
-                  hint="Your one-time verification code will be sent to this email."
+                )}
+                <PasswordField
+                  label="Password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  show={showPassword}
+                  onToggle={() => setShowPassword(v => !v)}
+                  error={fieldErrors.password}
+                  hint={mode === 'signup' ? 'At least 8 characters, with a letter and a number.' : undefined}
                 />
-              ) : (
-                <>
-                  <div className="alert alert-success">Code sent to {contact}. Check your email inbox and spam folder. Enter the code below to open your account.</div>
-                  <TextField
-                    label="One-time verification code"
-                    required
-                    value={code}
-                    onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    placeholder="Enter the code"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    autoFocus
-                  />
-                  <button type="button" className="link-arrow" onClick={sendCode} disabled={loading}>Resend email code</button>
-                </>
-              )}
-              <Button type="submit" size="lg" block loading={loading}>
-                {loading ? 'Please wait…' : step === 'contact' ? 'Send verification code' : 'Verify and sign in'}
-              </Button>
-              {step === 'verify' && <Button variant="outline" type="button" block onClick={() => { setStep('contact'); setCode(''); clear(); }}>Change email address</Button>}
-            </form>
+                {mode === 'signup' && (
+                  <>
+                    <PasswordField
+                      label="Confirm password"
+                      value={confirm}
+                      onChange={e => setConfirm(e.target.value)}
+                      autoComplete="new-password"
+                      show={showPassword}
+                      onToggle={() => setShowPassword(v => !v)}
+                      error={fieldErrors.confirm}
+                    />
+                    {password.length > 0 && (
+                      <div className="pw-meter">
+                        <div className="pw-meter-bars" aria-hidden="true">
+                          {[0, 1, 2, 3].map(i => (
+                            <span key={i} className="pw-meter-bar" data-level={passwordScore(password)} data-on={i < passwordScore(password) ? 'true' : 'false'} />
+                          ))}
+                        </div>
+                        <span className="pw-meter-label">{['Too short', 'Weak', 'Fair', 'Strong', 'Very strong'][passwordScore(password)]}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <Button type="submit" size="lg" block loading={loading}>
+                  {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+                </Button>
+              </form>
+            )}
           </div>
         )}
         {message && <p className="alert alert-success" style={{ marginTop: 16 }}>{message}</p>}
         {error && <p className="alert alert-error" role="alert" style={{ marginTop: 16 }}>{error}</p>}
         <p className="muted small auth-foot">You can check out as a guest too. <Link href="/seller/login">Seller login</Link></p>
       </div>
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  show,
+  onToggle,
+  error,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  autoComplete: string;
+  show: boolean;
+  onToggle: () => void;
+  error?: string;
+  hint?: string;
+}) {
+  const id = label.toLowerCase().replace(/\s+/g, '-');
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={id}>{label}</label>
+      <div className="pw-wrap">
+        <input
+          id={id}
+          className="input"
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? id + '-error' : hint ? id + '-hint' : undefined}
+        />
+        <button type="button" className="pw-toggle" onClick={onToggle} aria-label={show ? 'Hide password' : 'Show password'}>
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {error ? <span className="field-error" id={id + '-error'} role="alert">{error}</span>
+        : hint ? <span className="field-hint" id={id + '-hint'}>{hint}</span> : null}
     </div>
   );
 }

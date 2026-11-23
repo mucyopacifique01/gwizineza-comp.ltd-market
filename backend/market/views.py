@@ -546,6 +546,128 @@ def send_customer_otp(request, body):
               "message": "Verification code sent. Check your inbox or SMS messages."})
 
 
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 72
+
+
+def password_problem(password):
+    """Return a human message when the password is too weak, else None."""
+    if len(password) < PASSWORD_MIN_LENGTH:
+        return "Use at least %d characters for your password." % PASSWORD_MIN_LENGTH
+    if len(password) > PASSWORD_MAX_LENGTH:
+        return "That password is too long. Use %d characters or fewer." % PASSWORD_MAX_LENGTH
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        return "Include at least one letter and one number in your password."
+    return None
+
+
+def password_customer_login(request, body):
+    """Email or phone plus a password: create the account, or sign in with it.
+
+    The password never reaches Supabase from the browser: Django performs the
+    signup/password grant server side, then opens the normal customer session.
+    """
+    mode = clean(body.get("mode"), 20).lower() or "signin"
+    if mode not in {"signin", "signup"}:
+        return j({"error": "Choose sign in or sign up."}, 400)
+    kind, value = normalize_contact(body.get("email") or body.get("phone") or body.get("contact"))
+    if kind not in {"email", "phone"}:
+        return j({"error": "Enter a valid email address or mobile number with country code."}, 400)
+    label = "email address" if kind == "email" else "phone number"
+    password = str(body.get("password") or "")
+    name = clean(body.get("name"), 160)
+
+    if mode == "signup":
+        problem = password_problem(password)
+        if problem:
+            return j({"error": problem}, 400)
+        if len(name) < 2:
+            return j({"error": "Enter your full name."}, 400)
+    elif not password:
+        return j({"error": "Enter your password."}, 400)
+
+    if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+        return j({"error": "Supabase Auth is not configured on the Django service."}, 503)
+
+    # Throttle per contact so this endpoint cannot be used to guess passwords.
+    throttle_key = "pw-auth:" + hashlib.sha256((kind + ":" + value.lower()).encode()).hexdigest()
+    attempts = cache.get(throttle_key, 0)
+    if attempts >= 10:
+        return j({"error": "Too many attempts for this account. Wait 15 minutes and try again."}, 429)
+
+    headers = {"apikey": settings.SUPABASE_ANON_KEY, "Content-Type": "application/json"}
+    payload = {"password": password, kind: value}
+    if mode == "signup" and name:
+        payload["data"] = {"name": name, "full_name": name}
+
+    url = settings.SUPABASE_URL + ("/auth/v1/signup" if mode == "signup"
+                                   else "/auth/v1/token?grant_type=password")
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
+    except requests.RequestException:
+        return j({"error": "Could not contact Supabase Auth. Please try again."}, 502)
+
+    try:
+        result = response.json() if response.content else {}
+    except ValueError:
+        result = {}
+    if not isinstance(result, dict):
+        result = {}
+
+    if response.status_code >= 400:
+        cache.set(throttle_key, attempts + 1, 900)
+        detail = str(result.get("error_description") or result.get("msg")
+                     or result.get("error") or result.get("message") or "").lower()
+        if response.status_code == 429:
+            return j({"error": "Too many attempts. Please wait a few minutes and try again."}, 429)
+        if mode == "signup":
+            if any(word in detail for word in ("already", "registered", "exists", "duplicate")):
+                return j({"error": "An account with that %s already exists. Sign in instead." % label}, 409)
+            return j({"error": "We could not create your account. Check your details and try again."}, 400)
+        return j({"error": "That %s and password do not match. Check them and try again." % label}, 401)
+
+    user = result.get("user") if isinstance(result.get("user"), dict) else {}
+    access_token = clean(result.get("access_token"), 2400)
+
+    # Sign-up only returns a session when the address is auto-confirmed.
+    if not user:
+        return j({"error": "Supabase Auth returned an invalid response."}, 502)
+    if not access_token:
+        return j({
+            "ok": True,
+            "needsConfirmation": True,
+            "message": "Your account was created. Confirm your %s, then sign in." % label,
+        }, 201)
+
+    # Confirm the session really belongs to this account before trusting it.
+    try:
+        who = requests.get(settings.SUPABASE_URL + "/auth/v1/user",
+                           headers={"apikey": settings.SUPABASE_ANON_KEY,
+                                    "Authorization": "Bearer " + access_token}, timeout=12)
+        verified = who.json() if who.status_code < 400 else {}
+    except (requests.RequestException, ValueError):
+        verified = {}
+    if isinstance(verified, dict) and isinstance(verified.get("user"), dict):
+        verified = verified["user"]
+    if isinstance(verified, dict) and verified.get("id"):
+        user = verified
+
+    user_id = clean(user.get("id"), 80)
+    if not user_id:
+        return j({"error": "Supabase did not return a verified account."}, 502)
+
+    verified_email = clean(user.get("email"), 180).lower() or (value if kind == "email" else "")
+    verified_phone = clean(user.get("phone"), 30) or (value if kind == "phone" else "")
+    metadata = user.get("user_metadata") or {}
+    try:
+        profile = upsert_customer_profile(user_id, verified_email, verified_phone, name, metadata)
+    except IntegrityError:
+        return j({"error": "Could not link this account to a customer profile. Contact support."}, 409)
+
+    cache.delete(throttle_key)
+    response_body = customer_session_response(profile)
+    return response_body
+
 def customer_session_response(profile):
     """Shared sign-in response for every customer auth method (OTP or Google)."""
     response = j({"ok": True, "customer": customer_dto(profile), "message": "You are signed in."})
@@ -1081,6 +1203,8 @@ def _api_dispatch(request, resource=""):
         return send_customer_otp(request, body)
     if path in {"customer/auth/otp/verify", "customer/auth/verify"} and method == "POST":
         return verify_customer_otp(request, body)
+    if path == "customer/auth/password" and method == "POST":
+        return password_customer_login(request, body)
     if path == "customer/auth/google" and method == "POST":
         return google_customer_login(request, body)
     if path == "customer/auth/logout" and method == "POST":

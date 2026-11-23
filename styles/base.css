@@ -229,3 +229,18 @@ p { margin: 0; }
   .receipt { box-shadow: none !important; border: 1px solid #ccc !important; }
 }
 .print-only { display: none; }
+
+/* Password field + strength meter (auth page) */
+.pw-wrap { position: relative; display: flex; }
+.pw-wrap > .input { width: 100%; padding-right: 64px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; cursor: pointer; padding: 6px 8px; border-radius: 999px; }
+.pw-toggle:hover { color: var(--ink); background: var(--cream-2); }
+.pw-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pw-meter { display: flex; align-items: center; gap: 10px; margin-top: -4px; }
+.pw-meter-bars { display: flex; gap: 4px; flex: 1; }
+.pw-meter-bar { height: 5px; flex: 1; border-radius: 999px; background: var(--cream-2); transition: background .18s ease; }
+.pw-meter-bar[data-on='true'][data-level='1'] { background: #d64545; }
+.pw-meter-bar[data-on='true'][data-level='2'] { background: #e08a1e; }
+.pw-meter-bar[data-on='true'][data-level='3'] { background: #2f8f6b; }
+.pw-meter-bar[data-on='true'][data-level='4'] { background: #17795a; }
+.pw-meter-label { font-size: var(--fs-xs); color: var(--muted); min-width: 76px; text-align: right; }
