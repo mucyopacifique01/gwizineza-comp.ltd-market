@@ -294,7 +294,7 @@ function passwordScore(value: string): number {
         <div className="auth-head">
           <LogoMark size={44} />
           <h1>{customer ? 'Hi, ' + customer.name.split(' ')[0] : mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
-          <p className="muted">{customer ? 'You are signed in to Gwizineza Market.' : 'Sign in securely with a one-time code sent to your email or phone.'}</p>
+          <p className="muted">{customer ? 'You are signed in to Gwizineza Market.' : 'Sign in with your email or phone and password, or use a one-time code.'}</p>
         </div>
 
         {checking ? (
