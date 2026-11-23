@@ -70,6 +70,25 @@
 
 /* search overlay */
 .search-layer { position: fixed; inset: 0; z-index: 130; }
+.search-layer .search-panel {
+  /* Neutral surface for search: a soft warm grey, not the near-black theme
+     surface and not plain white, so the panel reads calm and the shop keeps its
+     own colours behind it. Text, borders and chips are re-tinted to match. */
+  background: #e3dfd7;
+  color: #0e1c17;
+  border: 1px solid rgba(14, 28, 23, .10);
+}
+.search-layer .search-bar { border-bottom-color: rgba(14, 28, 23, .12); }
+.search-layer .search-bar input { color: #0e1c17; }
+.search-layer .search-bar input::placeholder { color: rgba(14, 28, 23, .45); }
+.search-layer .search-h { color: rgba(14, 28, 23, .55); }
+.search-layer .chip { background: #f2efe9; border-color: rgba(14, 28, 23, .14); color: #26312c; }
+.search-layer .chip:hover { border-color: rgba(14, 28, 23, .35); }
+.search-layer .search-hit:hover, .search-layer .search-hit:focus-visible { background: rgba(14, 28, 23, .06); }
+.search-layer .btn-outline { --btn-fg: #0e1c17; --btn-bd: rgba(14, 28, 23, .28); }
+.search-layer .btn-ghost { --btn-fg: #0e1c17; }
+.search-layer .muted, .search-layer .pcard-seller { color: rgba(14, 28, 23, .6); }
+
 .search-layer .overlay {
   /* Neutral grey veil: neither black nor white, so the shop behind keeps its real
      colours and stays crisp. No blur, no darkening. Other dialogs keep the darker
