@@ -18,7 +18,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 from django.core.cache import cache
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Case, Count, IntegerField, Q, Sum, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.text import slugify
@@ -437,6 +437,15 @@ def public_products(query, include_inactive=False):
     term = clean(query.get("q"), 160)
     if term:
         qs = qs.filter(Q(name__icontains=term) | Q(description__icontains=term) | Q(sku__icontains=term))
+        # Typing the first letters should surface those products first: rank name
+        # prefixes ahead of mid-word hits, then SKU prefixes, then everything else.
+        qs = qs.annotate(_match_rank=Case(
+            When(name__istartswith=term, then=Value(0)),
+            When(name__icontains=term, then=Value(1)),
+            When(sku__istartswith=term, then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
+        ))
     category = clean(query.get("category"), 120)
     if category:
         category_uuid = as_uuid(category)
@@ -472,7 +481,11 @@ def public_products(query, include_inactive=False):
         "price-desc": ("-price_rwf",),
         "name": ("name",),
     }
-    qs = qs.order_by(*(sort_map.get(sort, ("-created_at",))))
+    order = sort_map.get(sort, ("-created_at",))
+    if term:
+        # Prefix hits win over the chosen sort so "car" lists "cariculatrice" first.
+        order = ("_match_rank",) + tuple(f for f in order if f != "_match_rank")
+    qs = qs.order_by(*order)
     total = qs.count()
     page = query.get("page")
     page_size = query.get("pageSize")

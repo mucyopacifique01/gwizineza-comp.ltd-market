@@ -16,6 +16,20 @@ function readRecent(): string[] {
   try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 6) : []; } catch { return []; }
 }
 
+function Highlight({ text, term }: { text: string; term: string }) {
+  const needle = term.trim();
+  if (!needle) return <>{text}</>;
+  const at = text.toLowerCase().indexOf(needle.toLowerCase());
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className="search-hl">{text.slice(at, at + needle.length)}</mark>
+      {text.slice(at + needle.length)}
+    </>
+  );
+}
+
 export function SearchOverlay({ open, onClose, categories }: { open: boolean; onClose: () => void; categories: CategoryDTO[] }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -112,7 +126,7 @@ export function SearchOverlay({ open, onClose, categories }: { open: boolean; on
                     <li key={p.id}>
                       <Link href={`/product/${p.slug}`} className="search-hit" onClick={() => { if (term) remember(term); onClose(); }}>
                         <span className="search-thumb"><ProductImage src={primaryImage(p)} alt="" sizes="56px" /></span>
-                        <span className="grow"><strong>{p.name}</strong><span className="muted tiny">{p.category?.name ?? 'Product'} · {p.seller?.businessName ?? 'Gwizineza Market'}</span></span>
+                        <span className="grow"><strong><Highlight text={p.name} term={term} /></strong><span className="muted tiny">{p.category?.name ?? 'Product'} · {p.seller?.businessName ?? 'Gwizineza Market'}</span></span>
                         <span className="search-price">{p.priceRwf.toLocaleString('en-US')} RWF</span>
                       </Link>
                     </li>
