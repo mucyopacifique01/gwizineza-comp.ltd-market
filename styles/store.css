@@ -85,6 +85,34 @@
   color: #071217;
   border-bottom-color: rgba(7, 18, 23, .14);
 }
+.search-layer .search-panel {
+  /* Refined edges: the panel clips its own corners so the teal row follows the
+     radius instead of squaring off the top, and it sits on a hairline border and
+     a softer, deeper shadow like the search surfaces people know elsewhere. */
+  overflow: hidden;
+  border: 1px solid rgba(14, 28, 23, .10);
+  box-shadow: 0 28px 70px -28px rgba(14, 28, 23, .55), 0 6px 18px -10px rgba(14, 28, 23, .18);
+}
+.search-layer .search-bar { padding: 14px 16px; gap: 10px; }
+.search-layer .search-bar input {
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, .18);
+  padding: 11px 18px;
+  min-height: 46px;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.search-layer .search-bar input:focus,
+.search-layer .search-bar input:focus-visible {
+  background: rgba(255, 255, 255, .28);
+  box-shadow: 0 0 0 3px rgba(7, 18, 23, .12);
+  outline: none;
+}
+.search-layer .search-results { padding: 4px; }
+.search-layer .search-hit { border-radius: 14px; padding: 8px 10px; }
+.search-layer .search-thumb { border-radius: 12px; }
+@media (min-width: 900px) {
+  .search-layer .search-panel { border-radius: 22px; }
+}
 .search-layer .search-hl { background: rgba(0, 191, 166, .30); color: inherit; font-weight: 800; border-radius: 4px; padding: 0 2px; }
 .search-layer .search-bar input { color: #071217; }
 .search-layer .search-bar input::placeholder { color: rgba(7, 18, 23, .55); }
