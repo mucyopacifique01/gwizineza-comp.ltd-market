@@ -94,6 +94,20 @@
 .search-layer .search-hit:hover, .search-layer .search-hit:focus-visible { background: rgba(14, 28, 23, .06); }
 .search-layer .btn-outline { --btn-fg: #0e1c17; --btn-bd: rgba(14, 28, 23, .28); }
 .search-layer .btn-ghost { --btn-fg: #0e1c17; }
+/* Inside the teal search row only the field stays green: the clear (X) and Close
+   controls sit on a solid neutral so they no longer read as green blocks. */
+.search-layer .search-bar .btn-ghost,
+.search-layer .search-bar .btn-outline {
+  --btn-bg: #fffdf8;
+  --btn-fg: #0e1c17;
+  --btn-bd: rgba(14, 28, 23, .16);
+  box-shadow: none;
+}
+.search-layer .search-bar .btn-ghost:hover:not(:disabled),
+.search-layer .search-bar .btn-outline:hover:not(:disabled) {
+  --btn-bg: #f2efe9;
+  --btn-bd: rgba(14, 28, 23, .30);
+}
 .search-layer .muted, .search-layer .pcard-seller { color: rgba(14, 28, 23, .6); }
 
 .search-layer .overlay {
